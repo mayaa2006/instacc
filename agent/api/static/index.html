@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>instacc</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#111214">
+<style>
+  :root { --bg:#f6f6f7; --card:#fff; --fg:#17181a; --muted:#6b6f76; --line:#e3e4e7; --accent:#5b5bd6; --ok:#1f8a4c; --bad:#c2372f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111214; --card:#1b1c1f; --fg:#ececee; --muted:#9a9ea6; --line:#2c2e33; --accent:#8b8bf0; --ok:#4cc27e; --bad:#f06a60; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0 8px 0 0; }
+  nav button { background:none; border:0; color:var(--muted); font:inherit; padding:6px 8px; border-radius:8px; cursor:pointer; }
+  nav button.on { color:var(--fg); background:var(--card); }
+  .chip { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:99px; padding:2px 8px; }
+  main { max-width:760px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
+  input, select, textarea { width:100%; font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px; }
+  textarea { min-height:80px; resize:vertical; }
+  button.b { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button.p { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.ok { border-color:var(--ok); color:var(--ok); }
+  button.bad { border-color:var(--bad); color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .task { cursor:pointer; }
+  .meta { font-size:12px; color:var(--muted); }
+  .opt { border-top:1px solid var(--line); padding:10px 0; }
+  .opt:first-of-type { border-top:0; }
+  .score { font-variant-numeric:tabular-nums; font-weight:600; }
+  pre { white-space:pre-wrap; word-break:break-word; font-size:12px; background:var(--bg); padding:8px; border-radius:8px; max-height:300px; overflow:auto; }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; padding:4px 0; }
+  .hidden { display:none; }
+  .err { color:var(--bad); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>instacc</h1>
+  <nav>
+    <button data-view="tasks" class="on">Tasks</button>
+    <button data-view="new">New</button>
+    <button data-view="persona">Persona</button>
+    <button data-view="system">System</button>
+  </nav>
+  <span class="chip" id="chip">…</span>
+</header>
+<main>
+  <div id="auth" class="card hidden">
+    <label for="tok">API token (INSTACC_API_TOKEN)</label>
+    <input id="tok" type="password" autocomplete="current-password">
+    <div class="row"><button class="b p" id="saveTok">Save</button></div>
+  </div>
+
+  <section id="v-tasks">
+    <div class="row" style="margin:0 0 12px">
+      <select id="filter" style="width:auto">
+        <option value="awaiting_approval">Awaiting approval</option>
+        <option value="">All</option>
+        <option value="running">Running</option>
+        <option value="approved">Approved</option>
+        <option value="failed">Failed</option>
+      </select>
+      <button class="b" id="refresh">Refresh</button>
+    </div>
+    <div id="list"></div>
+    <div id="detail"></div>
+  </section>
+
+  <section id="v-new" class="hidden">
+    <div class="card">
+      <label for="ttype">Task type</label>
+      <select id="ttype"></select>
+      <label for="tprompt">Request</label>
+      <textarea id="tprompt" placeholder="e.g. a video of her failing to make latte art for the 10th time"></textarea>
+      <label for="tnote">Extra direction (optional)</label>
+      <input id="tnote">
+      <div class="row"><button class="b p" id="go">Think</button><span id="newMsg" class="meta"></span></div>
+    </div>
+  </section>
+
+  <section id="v-persona" class="hidden">
+    <div class="card">
+      <div class="meta" id="pver"></div>
+      <label for="pjson">Persona Bible (JSON)</label>
+      <textarea id="pjson" style="min-height:420px;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+      <div class="row"><button class="b p" id="psave">Save new version</button><span id="pmsg" class="meta"></span></div>
+    </div>
+  </section>
+
+  <section id="v-system" class="hidden">
+    <div class="card">
+      <div id="sys"></div>
+      <div class="row">
+        <button class="b" id="mThink">GPU → think</button>
+        <button class="b" id="mRender">GPU → render (2h)</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let token = ""; try { token = localStorage.getItem("instacc_token") || ""; } catch (e) {}
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) } });
+  if (r.status === 401) { $("#auth").classList.remove("hidden"); throw new Error("unauthorized"); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+$("#saveTok").onclick = () => { token = $("#tok").value.trim(); try { localStorage.setItem("instacc_token", token); } catch (e) {} $("#auth").classList.add("hidden"); boot(); };
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.view));
+function show(v) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  ["tasks","new","persona","system"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
+  if (v === "tasks") loadTasks(); if (v === "persona") loadPersona(); if (v === "system") loadSystem();
+}
+
+const ago = t => { const s = Date.now()/1000 - t; return s < 60 ? "just now" : s < 3600 ? Math.round(s/60) + "m ago" : s < 86400 ? Math.round(s/3600) + "h ago" : Math.round(s/86400) + "d ago"; };
+
+async function loadTasks() {
+  const st = $("#filter").value;
+  const tasks = await api("/tasks" + (st ? "?status=" + st : ""));
+  $("#list").innerHTML = tasks.length ? tasks.map(t => `
+    <div class="card task" data-id="${t.id}">
+      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${ago(t.created_at)}${t.result?.best_score != null ? " · best " + t.result.best_score : ""}</div>
+      <div>${esc(t.prompt)}</div>
+      ${t.note ? `<div class="meta">note: ${esc(t.note)}</div>` : ""}
+    </div>`).join("") : `<div class="meta">Nothing here.</div>`;
+  document.querySelectorAll(".task").forEach(el => el.onclick = () => openTask(el.dataset.id));
+}
+$("#filter").onchange = loadTasks; $("#refresh").onclick = loadTasks;
+
+async function openTask(id) {
+  const t = await api("/tasks/" + id);
+  const r = t.result || {};
+  const pending = t.status === "awaiting_approval";
+  const opts = (r.options || []).map((o, i) => `
+    <div class="opt">
+      <div>${o.score != null ? `<span class="score">${o.score}</span> · ` : ""}${esc(o.text)}</div>
+      ${o.rationale ? `<div class="meta">why: ${esc(o.rationale)}</div>` : ""}
+      ${o.judge_notes ? `<div class="meta">judge: ${esc(o.judge_notes)}</div>` : ""}
+      ${pending ? `<div class="row"><button class="b ok" data-approve="${i}">Approve #${i+1}</button></div>` : ""}
+    </div>`).join("");
+  const trace = (t.trace || []).map(s => `
+    <details><summary>${esc(s.stage)} · loop ${s.loop} · ${esc(s.slot || "")}${s.role ? " (" + esc(s.role) + ")" : ""} · ${s.latency_ms ?? "?"}ms${s.cost_usd ? " · $" + s.cost_usd.toFixed(4) : ""}${s.note ? " · " + esc(s.note) : ""}</summary><pre>${esc(s.output || "")}</pre></details>`).join("");
+  $("#detail").innerHTML = `
+    <div class="card">
+      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${t.id}${r.loops ? " · " + r.loops + " loop(s)" : ""}${r.below_threshold ? " · below threshold" : ""}</div>
+      <h3 style="margin:6px 0">${esc(t.prompt)}</h3>
+      ${t.error ? `<div class="err">${esc(t.error)}</div>` : ""}
+      ${t.chosen ? `<div class="meta">approved:</div><div>${esc(t.chosen.text)}</div>` : ""}
+      ${opts}
+      ${r.judge_feedback ? `<details><summary>judge feedback</summary><pre>${esc(r.judge_feedback)}</pre></details>` : ""}
+      ${(r.decision_log || []).length ? `<details><summary>decision log</summary><pre>${esc(r.decision_log.join("\n"))}</pre></details>` : ""}
+      ${pending ? `<label for="rnote">Rethink with note</label><input id="rnote"><div class="row"><button class="b" id="rethink">Rethink</button><button class="b bad" id="reject">Reject</button></div>` : ""}
+      <details><summary>full trace (${(t.trace||[]).length} steps)</summary>${trace}</details>
+    </div>`;
+  $("#detail").scrollIntoView({ behavior: "smooth" });
+  document.querySelectorAll("[data-approve]").forEach(b => b.onclick = async () => { await api(`/tasks/${id}/approve`, { method: "POST", body: JSON.stringify({ index: +b.dataset.approve }) }); openTask(id); loadTasks(); });
+  if (pending) {
+    $("#rethink").onclick = async () => { const n = await api(`/tasks/${id}/rethink`, { method: "POST", body: JSON.stringify({ note: $("#rnote").value || null }) }); $("#detail").innerHTML = `<div class="card meta">Rethinking as task ${n.id}…</div>`; loadTasks(); };
+    $("#reject").onclick = async () => { await api(`/tasks/${id}/reject`, { method: "POST" }); openTask(id); loadTasks(); };
+  }
+}
+
+$("#go").onclick = async () => {
+  try {
+    const r = await api("/tasks", { method: "POST", body: JSON.stringify({ type: $("#ttype").value, prompt: $("#tprompt").value, note: $("#tnote").value || null }) });
+    $("#newMsg").textContent = "Thinking… task " + r.id; $("#tprompt").value = ""; $("#tnote").value = "";
+  } catch (e) { $("#newMsg").textContent = e.message; }
+};
+
+async function loadPersona() {
+  try { const p = await api("/persona"); $("#pjson").value = JSON.stringify(p.data, null, 2); $("#pver").textContent = "version " + p.version + " · saved " + ago(p.created_at); }
+  catch (e) { $("#pver").textContent = e.message; }
+}
+$("#psave").onclick = async () => {
+  try { const r = await api("/persona", { method: "PUT", body: JSON.stringify(JSON.parse($("#pjson").value)) }); $("#pmsg").textContent = "saved v" + r.version; loadPersona(); }
+  catch (e) { $("#pmsg").textContent = e.message; }
+};
+
+async function loadSystem() {
+  const s = await api("/status");
+  const g = s.gpu;
+  $("#sys").innerHTML = `<div><b>GPU:</b> ${esc(g.mode)}${g.holder ? " (held by " + esc(g.holder) + ")" : ""}${g.switching ? " · switching…" : ""}</div>
+    <div class="meta">waiting for think mode: ${g.calls_waiting_for_think_mode} · in flight: ${g.inflight_local_calls}</div>
+    <div style="margin-top:8px"><b>Cloud budget:</b> $${s.budget.spent_usd} / $${s.budget.monthly_usd} this month</div>
+    <pre>${esc(JSON.stringify(g.servers, null, 2))}</pre>`;
+}
+$("#mThink").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "think" }) }); loadSystem(); };
+$("#mRender").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "render", holder: "manual", ttl_s: 7200 }) }); loadSystem(); };
+
+async function chip() {
+  try { const s = await api("/status"); $("#chip").textContent = `${s.gpu.mode} · ${s.pending} pending · $${s.budget.spent_usd}`; } catch (e) { $("#chip").textContent = "offline"; }
+}
+
+async function boot() {
+  try {
+    const types = await api("/task-types");
+    $("#ttype").innerHTML = Object.entries(types).map(([k, v]) => `<option value="${k}">${k} — ${esc(v.description)} (${v.sensitivity})</option>`).join("");
+    loadTasks(); chip();
+  } catch (e) {}
+}
+boot(); setInterval(chip, 15000);
+</script>
+</body>
+</html>

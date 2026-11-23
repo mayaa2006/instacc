@@ -1,0 +1,58 @@
+# Deliberation configs per task type.
+# proposer entry: "<slot>@<temperature>[:<role>]"
+# sensitivity: private -> every step stays local; public -> cloud slots allowed.
+roles:
+  strategist: "You think about long-term growth, positioning and what makes this persona distinct."
+  hook: "You are obsessed with the first 1.5 seconds: scroll-stopping hooks, trends, pattern interrupts."
+  audience: "You speak for the target audience: what they actually feel, want, and would comment on."
+  contrarian: "You deliberately take the unexpected angle and push back on the obvious idea."
+  writer: "You write in the persona's exact voice."
+
+tasks:
+  hooks:
+    description: "Scroll-stopping hooks for a video idea"
+    sensitivity: public
+    n_options: 5
+    proposers: ["main@0.9:hook", "alt@0.9:audience", "main@1.1:contrarian"]
+    critique: false
+    synthesizer: "main@0.3:writer"
+    judge: judge
+    threshold: 7.0
+    max_loops: 1
+  caption:
+    description: "Captions + hashtags for a post"
+    sensitivity: private          # persona voice stays local
+    n_options: 3
+    proposers: ["main@0.9:writer", "main@1.1:audience"]
+    critique: false
+    synthesizer: "main@0.3:writer"
+    judge: main                   # private -> local judge
+    threshold: 7.0
+    max_loops: 1
+  idea:
+    description: "Video concepts for the persona"
+    sensitivity: public
+    n_options: 5
+    proposers: ["main@0.9:strategist", "alt@0.9:hook", "judge@1.0:contrarian"]
+    critique: true
+    synthesizer: "main@0.3:strategist"
+    judge: judge
+    threshold: 7.5
+    max_loops: 2
+  quick:
+    description: "Fast single pass, no deliberation"
+    sensitivity: private
+    n_options: 3
+    proposers: ["fast@0.8:writer"]
+    critique: false
+    synthesizer: null
+    judge: null
+    threshold: 0
+    max_loops: 0
+
+rubric:
+  - "Hook strength: would this stop a scroll in the first 1.5 seconds?"
+  - "Persona fit: does it sound exactly like the persona, respecting do/don't lists?"
+  - "Novelty: is it different from the persona's recent and approved content?"
+  - "Audience resonance: will the target audience feel something and engage?"
+  - "Platform fit: works on Instagram Reels and TikTok, no policy risk."

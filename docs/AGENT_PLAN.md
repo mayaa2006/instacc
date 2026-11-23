@@ -118,7 +118,7 @@ The model landscape moves monthly, so treat these as *slots* to fill with whatev
 | `embed` | Memory / RAG | A small embedding model (bge / nomic / Qwen-embedding class) |
 | `vlm` | Reviews generated video frames for consistency and quality | An open vision-language model (Qwen-VL class). It closes the loop with the video pipeline. |
 
-> **Chosen setup: a single RTX 4090 (24 GB) plus cloud for some steps. See §8 for the concrete config.**
+> **Chosen setup: a single RTX 3090 (24 GB), 16 GB system RAM, plus cloud for some steps. See §8 for the concrete config.**
 
 ### Hardware tiers (the GPU is shared with video generation)
 - **24 GB (e.g. 3090/4090):** run `fast` + one ~30B MoE at Q4. Get proposer diversity from roles and temperatures, plus one swapped-in alt model. Schedule deep thinking and video rendering at *different times*.
@@ -226,7 +226,12 @@ You can't claim the swarm beats a single model without measuring it.
 
 ---
 
-## 8. Concrete config: RTX 4090 (24 GB) + hybrid cloud
+## 8. Concrete config: RTX 3090 (24 GB) + 16 GB RAM + hybrid cloud
+
+> **Measured hardware (video side's hwcheck):** RTX 3090 24 GB, Ryzen 7 5800X, **15.9 GB RAM**.
+> With 16 GB of RAM nothing large can run on the CPU next to ComfyUI. In render mode, `main` and `fast` are **stopped**;
+> private tasks wait for think mode, public tasks use the cloud. The "64 GB RAM" options below only apply after a RAM upgrade.
+> Implementation: `config/agent.yaml`, `docs/AGENT_SETUP.md`.
 
 ### Core principle: the GPU has two modes, and the cloud fills the gaps
 A 14B-class video model with character references will use roughly all 24 GB, so the LLMs and video can't share the card at the same time. The GPU scheduler switches between two modes:
@@ -283,7 +288,7 @@ weekly_strategy:
   max_loops: 2
 ```
 
-### Revised Phase 1 checklist (4090)
+### Revised Phase 1 checklist (3090)
 1. Install `llama.cpp` server (CUDA build), then download the `fast` and `main` GGUFs and a small embedding model.
 2. Set up LiteLLM with three endpoints (local-gpu, local-cpu, openrouter), a budget cap, and the refusal-fallback hook.
 3. Build the GPU scheduler v0: a single Redis lock with `think` / `render` modes. Model servers are started and stopped by the scheduler.

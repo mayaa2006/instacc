@@ -1,0 +1,81 @@
+# instacc agent configuration (RTX 3090 24 GB + 16 GB RAM + OpenRouter)
+# Paths are relative to the InstACC folder (portable install, nothing system-wide).
+data_dir: data
+
+# ---------------------------------------------------------------------------
+# Local model servers (llama.cpp `llama-server`). The GPU scheduler starts and
+# restarts them with the profile for the current GPU mode.
+# Set manage_processes: false if you prefer to start the servers yourself.
+# ---------------------------------------------------------------------------
+llama_server:
+  manage_processes: true
+  binary: llm/llama.cpp/llama-server.exe   # relative to InstACC; on Linux just `llama-server`
+  startup_timeout_s: 180
+
+servers:
+  # A server is only running in the modes it has a profile for. Calls to a server
+  # that is stopped in the current mode WAIT until the GPU returns to think mode.
+  main:
+    model_path: llm/models/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated.Q4_K_M.gguf  # ~18.6 GB
+    port: 8080
+    profiles:
+      # Think mode: whole model on GPU, 16k context, q8 KV cache (~22 GB VRAM total)
+      think: ["-ngl", "99", "-c", "16384", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0", "--jinja"]
+      # Render mode: no profile = stopped. With 16 GB RAM the model can't run on CPU
+      # next to ComfyUI. If you upgrade to 64 GB RAM, uncomment:
+      # render: ["-ngl", "0", "-c", "8192", "--jinja", "--threads", "8"]
+  fast:
+    model_path: llm/models/Huihui-Qwen3-4B-Instruct-2507-abliterated.Q4_K_M.gguf     # ~2.5 GB
+    port: 8081
+    profiles:
+      think: ["-ngl", "0", "-c", "8192", "--jinja", "--threads", "8"]
+      # Stopped during render to leave system RAM for ComfyUI (Wan offloading). With 32 GB+ RAM:
+      # render: ["-ngl", "0", "-c", "8192", "--jinja", "--threads", "6"]
+  embed:
+    model_path: llm/models/nomic-embed-text-v1.5.Q8_0.gguf                            # ~140 MB
+    port: 8082
+    profiles:
+      think: ["-ngl", "0", "--embedding", "-c", "2048"]
+      render: ["-ngl", "0", "--embedding", "-c", "2048"]
+
+# ComfyUI (video side). On switching back to think mode the scheduler asks ComfyUI
+# to unload its models so the LLMs get the VRAM.
+comfyui:
+  url: "http://127.0.0.1:8188"
+  free_on_think: true
+
+# ---------------------------------------------------------------------------
+# Endpoints: anything OpenAI-compatible.
+# ---------------------------------------------------------------------------
+endpoints:
+  local_main:  {base_url: "http://127.0.0.1:8080/v1", kind: local, server: main, uses_gpu: true}
+  local_fast:  {base_url: "http://127.0.0.1:8081/v1", kind: local, server: fast}
+  local_embed: {base_url: "http://127.0.0.1:8082/v1", kind: local, server: embed}
+  openrouter:
+    base_url: "https://openrouter.ai/api/v1"
+    kind: cloud
+    api_key_env: OPENROUTER_API_KEY
+
+# ---------------------------------------------------------------------------
+# Slots: the roles the deliberation engine uses. Swap models here only.
+# Cloud model IDs: verify current names at https://openrouter.ai/models
+# price_* are USD per 1M tokens, used only if the provider doesn't report cost.
+# ---------------------------------------------------------------------------
+slots:
+  main:  {endpoint: local_main, model: main}
+  fast:  {endpoint: local_fast, model: fast}
+  embed: {endpoint: local_embed, model: embed}
+  alt:   {endpoint: openrouter, model: "mistralai/mistral-small-3.2-24b-instruct", price_in: 0.1, price_out: 0.3}
+  judge: {endpoint: openrouter, model: "anthropic/claude-sonnet-4.5", price_in: 3.0, price_out: 15.0}
+
+routing:
+  # Slot used when a PRIVATE call would otherwise go to the cloud, or a cloud call refuses.
+  local_fallback_slot: main
+  refusal_fallback: true
+  # Ask the fast model to confirm a suspected refusal before rerouting (fewer false positives).
+  confirm_refusal_with_fast: true
+  # If the cloud is unreachable or over budget, fall back to local instead of failing.
+  fallback_on_cloud_error: true
+
+budget:
+  monthly_usd: 20.0

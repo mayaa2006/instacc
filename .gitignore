@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/
+models/
+*.gguf
+.pytest_cache/
+config/persona.yaml
+# portable install (InstACC folder) - never commit these
+comfyui/
+python/
+tools/
+llm/
+cache/
+logs/
+*.safetensors
+*.pth
+*.pt
