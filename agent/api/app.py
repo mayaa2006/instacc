@@ -15,7 +15,8 @@ from pydantic import BaseModel
 
 from agent.config import Settings
 from agent.container import Container
-from agent.tasks import TaskError
+from agent.evals.harness import EvalError
+from agent.tasks import AUTO, TaskError
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -33,6 +34,21 @@ class Approve(BaseModel):
 
 class Rethink(BaseModel):
     note: str | None = None
+
+
+class NewEval(BaseModel):
+    variants: list[str] = ["single:main", "pipeline"]
+    name: str | None = None
+    cases: str = "golden"
+    limit: int | None = None
+    types: list[str] | None = None
+    auto_judge: str | None = "judge"
+    concurrency: int = 1
+
+
+class Vote(BaseModel):
+    token: str
+    choice: Literal["left", "right", "tie"]
 
 
 class GpuMode(BaseModel):
@@ -136,8 +152,10 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
 
     @api.get("/task-types")
     def task_types():
-        return {k: {"description": v.description, "sensitivity": v.sensitivity}
-                for k, v in settings.tasks.tasks.items()}
+        out = {AUTO: {"description": "Let the router pick the task type", "sensitivity": "private"}}
+        out.update({k: {"description": v.description, "sensitivity": v.sensitivity}
+                    for k, v in settings.tasks.tasks.items()})
+        return out
 
     @api.post("/tasks")
     async def create_task(body: NewTask, request: Request):
@@ -178,6 +196,43 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
             return {"id": c(request).tasks.rethink(tid, body.note, source="api")}
         except TaskError as e:
             raise HTTPException(409, str(e))
+
+    # ---- evals ----------------------------------------------------------
+    @api.get("/evals")
+    def list_evals(request: Request):
+        return c(request).evals.list_runs()
+
+    @api.post("/evals")
+    async def start_eval(body: NewEval, request: Request):
+        try:
+            rid = c(request).evals.start(body.variants, name=body.name, cases=body.cases, limit=body.limit,
+                                         types=body.types, auto_judge=body.auto_judge,
+                                         concurrency=body.concurrency)
+        except (EvalError, ValueError) as e:
+            raise HTTPException(422, str(e))
+        return {"id": rid}
+
+    @api.get("/evals/{rid}")
+    def eval_report(rid: str, request: Request, voter: str | None = None):
+        try:
+            return c(request).evals.report(rid, voter=voter)
+        except EvalError as e:
+            raise HTTPException(404, str(e))
+
+    @api.get("/evals/{rid}/pair")
+    def eval_pair(rid: str, request: Request):
+        try:
+            return c(request).evals.next_pair(rid) or {"done": True}
+        except EvalError as e:
+            raise HTTPException(404, str(e))
+
+    @api.post("/evals/vote")
+    def eval_vote(body: Vote, request: Request):
+        try:
+            c(request).evals.vote(body.token, body.choice)
+        except EvalError as e:
+            raise HTTPException(409, str(e))
+        return {"ok": True}
 
     @api.get("/gpu")
     def gpu_status(request: Request):

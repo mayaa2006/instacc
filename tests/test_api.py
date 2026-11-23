@@ -42,3 +42,19 @@ def test_end_to_end(settings, transport):
         assert client.post("/api/gpu/mode", json={"mode": "think"}, headers=H).json()["mode"] == "think"
         s = client.get("/api/status", headers=H).json()
         assert s["budget"]["spent_usd"] > 0
+
+
+def test_eval_api(settings, transport):
+    settings.agent.llama_server.manage_processes = False
+    with TestClient(create_app(settings, transport=transport, start_bot=False)) as client:
+        assert "auto" in client.get("/api/task-types").json()
+        rid = client.post("/api/evals", json={"variants": ["single:main", "pipeline"], "limit": 2}).json()["id"]
+        deadline = time.time() + 10
+        while client.get("/api/evals").json()[0]["status"] == "running" and time.time() < deadline:
+            time.sleep(0.05)
+        rep = client.get(f"/api/evals/{rid}").json()
+        assert rep["run"]["status"] == "done" and rep["votes"] == 2
+        pair = client.get(f"/api/evals/{rid}/pair").json()
+        assert client.post("/api/evals/vote", json={"token": pair["token"], "choice": "tie"}).json()["ok"]
+        assert client.post("/api/evals/vote", json={"token": pair["token"], "choice": "tie"}).status_code == 409
+        assert client.post("/api/evals", json={"variants": ["bad"]}).status_code == 422

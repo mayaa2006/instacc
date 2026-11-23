@@ -208,7 +208,7 @@ shared/schemas/   VideoJob, Persona, ContinuityEntry (pydantic), shared by both 
 | Phase | Deliverable | Done when |
 |---|---|---|
 | **1. Foundation** (week 1–2) | LiteLLM + 2 local models, FastAPI, SQLite memory, Persona Bible editor, Telegram approve/reject | You can ask for 5 caption options from your phone and approve one |
-| **2. Deliberation v1** | Router, independent proposers, synthesizer, pairwise judge, traces stored and viewable | On your eval set (§7), the pipeline beats the best single model in blind pairwise tests |
+| **2. Deliberation v1** *(built: router, eval harness with blind human + position-swapped LLM pairwise votes; needs real runs on the 3090)* | Router, independent proposers, synthesizer, pairwise judge, traces stored and viewable | On your eval set (§7), the pipeline beats the best single model in blind pairwise tests |
 | **3. Production loop** | VideoJob schema with the video module, continuity ledger, VLM frame checks, IG publishing, TikTok drafts | One full series (≥5 videos) is produced end-to-end with consistent character and setting |
 | **4. Learning loop** | Insights ingestion, outcome store, judge calibration, few-shot "what worked" retrieval, comment triage | Judge scores correlate positively with real engagement, and you tune the rubric from data |
 | **5. Autonomy & polish** | Autonomy levels, PWA dashboard, GPU scheduler, prompt optimization, optional voice LoRA | Most routine actions run at L1/L2 and you mostly do approvals |

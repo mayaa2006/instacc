@@ -17,11 +17,16 @@ class TaskError(ValueError):
     pass
 
 
+AUTO = "auto"
+
+
 class TaskService:
-    def __init__(self, db: DB, engine: DeliberationEngine, memory: Memory, max_concurrent: int = 2):
+    def __init__(self, db: DB, engine: DeliberationEngine, memory: Memory, max_concurrent: int = 2,
+                 router=None):
         self.db = db
         self.engine = engine
         self.memory = memory
+        self.router = router
         self.listeners: list[Listener] = []
         self._sem = asyncio.Semaphore(max_concurrent)
         self._running: set[asyncio.Task] = set()
@@ -38,7 +43,8 @@ class TaskService:
 
     def create(self, type_: str, prompt: str, *, note: str | None = None, parent_id: str | None = None,
                source: str | None = None) -> str:
-        self.engine.task_cfg(type_)  # validate type
+        if type_ != AUTO or self.router is None:
+            self.engine.task_cfg(type_)  # validate type
         if not prompt.strip():
             raise TaskError("prompt is empty")
         tid = self.db.task_create(type_, prompt.strip(), note=note, parent_id=parent_id, source=source)
@@ -54,6 +60,11 @@ class TaskService:
         async with self._sem:
             self.db.task_update(tid, status="running")
             try:
+                task = self.db.task_get(tid)
+                if task["type"] == AUTO and self.router is not None:
+                    chosen, reason = await self.router.route(tid, task["prompt"])
+                    self.db.task_update(tid, type=chosen)
+                    log.info("task %s routed to %s (%s)", tid, chosen, reason)
                 result = await self.engine.run(tid)
                 self.db.task_update(tid, status="awaiting_approval", result=result, error=None)
                 await self._emit("ready", self.db.task_get(tid))

@@ -8,6 +8,8 @@ import httpx
 from agent.config import Settings
 from agent.db import DB
 from agent.deliberation.engine import DeliberationEngine
+from agent.deliberation.router import Router
+from agent.evals.harness import EvalService
 from agent.memory.store import Memory
 from agent.models.client import LLMClient
 from agent.scheduler.gpu import GpuScheduler
@@ -25,6 +27,7 @@ class Container:
     memory: Memory
     engine: DeliberationEngine
     tasks: TaskService
+    evals: EvalService
 
     @classmethod
     def build(cls, settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> "Container":
@@ -38,8 +41,9 @@ class Container:
         memory = Memory(db, llm)
         memory.seed_persona(settings.root / "config")
         engine = DeliberationEngine(settings, db, llm, memory)
-        tasks = TaskService(db, engine, memory)
-        return cls(settings, db, servers, gpu, llm, memory, engine, tasks)
+        tasks = TaskService(db, engine, memory, router=Router(settings, db, llm))
+        evals = EvalService(settings, db, engine, llm, memory)
+        return cls(settings, db, servers, gpu, llm, memory, engine, tasks, evals)
 
     async def start(self) -> None:
         await self.gpu.start()

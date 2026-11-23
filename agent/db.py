@@ -68,6 +68,41 @@ CREATE TABLE IF NOT EXISTS memory_items (
   created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_memory_kind ON memory_items(kind);
+CREATE TABLE IF NOT EXISTS eval_runs (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  config TEXT NOT NULL,
+  status TEXT NOT NULL,
+  progress TEXT,
+  error TEXT,
+  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS eval_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  task_type TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  variant TEXT NOT NULL,
+  task_id TEXT,
+  output TEXT,
+  cost_usd REAL,
+  wall_s REAL,
+  error TEXT,
+  UNIQUE(run_id, case_id, variant)
+);
+CREATE TABLE IF NOT EXISTS eval_votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  a TEXT NOT NULL,
+  b TEXT NOT NULL,
+  winner TEXT NOT NULL,      -- variant name or 'tie'
+  voter TEXT NOT NULL,       -- 'human' or 'llm:<slot>'
+  reason TEXT,
+  created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_votes_run ON eval_votes(run_id);
 CREATE TABLE IF NOT EXISTS kv (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -163,13 +198,15 @@ class DB:
         rows = self.query("SELECT * FROM tasks WHERE id=?", (tid,))
         return self._task_row(rows[0]) if rows else None
 
-    def task_list(self, status: str | None = None, limit: int = 50) -> list[dict]:
+    def task_list(self, status: str | None = None, limit: int = 50, include_eval: bool = False) -> list[dict]:
+        where, params = [], []
         if status:
-            rows = self.query(
-                "SELECT * FROM tasks WHERE status=? ORDER BY created_at DESC LIMIT ?", (status, limit)
-            )
-        else:
-            rows = self.query("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,))
+            where.append("status=?")
+            params.append(status)
+        if not include_eval:
+            where.append("(source IS NULL OR source NOT LIKE 'eval:%')")
+        sql = "SELECT * FROM tasks" + (" WHERE " + " AND ".join(where) if where else "")
+        rows = self.query(sql + " ORDER BY created_at DESC LIMIT ?", (*params, limit))
         return [self._task_row(r) for r in rows]
 
     # ---- trace ----------------------------------------------------------

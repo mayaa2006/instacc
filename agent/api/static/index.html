@@ -35,6 +35,12 @@
   details summary { cursor:pointer; color:var(--muted); font-size:13px; padding:4px 0; }
   .hidden { display:none; }
   .err { color:var(--bad); font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  .tablewrap { overflow-x:auto; }
+  .pair { display:grid; grid-template-columns:1fr; gap:10px; }
+  @media (min-width:640px) { .pair { grid-template-columns:1fr 1fr; } }
+  .side { border:1px solid var(--line); border-radius:10px; padding:10px; white-space:pre-wrap; }
 </style>
 </head>
 <body>
@@ -44,6 +50,7 @@
     <button data-view="tasks" class="on">Tasks</button>
     <button data-view="new">New</button>
     <button data-view="persona">Persona</button>
+    <button data-view="eval">Eval</button>
     <button data-view="system">System</button>
   </nav>
   <span class="chip" id="chip">…</span>
@@ -91,6 +98,22 @@
     </div>
   </section>
 
+  <section id="v-eval" class="hidden">
+    <div class="card">
+      <label for="evars">Variants to compare (comma-separated)</label>
+      <input id="evars" value="single:main, single:judge, pipeline">
+      <div class="meta">pipeline · pipeline:no-critique · pipeline:no-judge · pipeline:no-synth · pipeline:no-loops · single:&lt;slot&gt;</div>
+      <div class="row">
+        <label style="margin:0">Cases <input id="elimit" type="number" min="1" placeholder="all 30" style="width:90px"></label>
+        <label style="margin:0"><input id="ejudge" type="checkbox" checked style="width:auto"> LLM judge too</label>
+        <button class="b p" id="estart">Start eval</button><span id="emsg" class="meta"></span>
+      </div>
+    </div>
+    <div id="eruns"></div>
+    <div id="ereport"></div>
+    <div id="erate"></div>
+  </section>
+
   <section id="v-system" class="hidden">
     <div class="card">
       <div id="sys"></div>
@@ -119,8 +142,8 @@ $("#saveTok").onclick = () => { token = $("#tok").value.trim(); try { localStora
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.view));
 function show(v) {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
-  ["tasks","new","persona","system"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
-  if (v === "tasks") loadTasks(); if (v === "persona") loadPersona(); if (v === "system") loadSystem();
+  ["tasks","new","persona","eval","system"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
+  if (v === "tasks") loadTasks(); if (v === "persona") loadPersona(); if (v === "system") loadSystem(); if (v === "eval") loadEvals();
 }
 
 const ago = t => { const s = Date.now()/1000 - t; return s < 60 ? "just now" : s < 3600 ? Math.round(s/60) + "m ago" : s < 86400 ? Math.round(s/3600) + "h ago" : Math.round(s/86400) + "d ago"; };
@@ -197,6 +220,58 @@ async function loadSystem() {
 }
 $("#mThink").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "think" }) }); loadSystem(); };
 $("#mRender").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "render", holder: "manual", ttl_s: 7200 }) }); loadSystem(); };
+
+$("#estart").onclick = async () => {
+  try {
+    const body = { variants: $("#evars").value.split(",").map(x => x.trim()).filter(Boolean), auto_judge: $("#ejudge").checked ? "judge" : null };
+    if ($("#elimit").value) body.limit = +$("#elimit").value;
+    const r = await api("/evals", { method: "POST", body: JSON.stringify(body) });
+    $("#emsg").textContent = "started " + r.id; loadEvals();
+  } catch (e) { $("#emsg").textContent = e.message; }
+};
+
+async function loadEvals() {
+  const runs = await api("/evals");
+  $("#eruns").innerHTML = runs.length ? `<div class="card"><table><tr><th>Run</th><th>Status</th><th></th></tr>` + runs.map(r => `
+    <tr><td>${esc(r.name)}<div class="meta">${r.id} · ${ago(r.created_at)}</div></td>
+    <td>${esc(r.status)}${r.status === "running" ? ` · ${esc(r.progress.stage || "")} ${r.progress.done}/${r.progress.total}` : ""}${r.error ? `<div class="err">${esc(r.error)}</div>` : ""}</td>
+    <td><button class="b" data-rep="${r.id}">Report</button> <button class="b" data-rate="${r.id}">Rate</button></td></tr>`).join("") + `</table></div>` : "";
+  document.querySelectorAll("[data-rep]").forEach(b => b.onclick = () => showReport(b.dataset.rep));
+  document.querySelectorAll("[data-rate]").forEach(b => b.onclick = () => ratePair(b.dataset.rate));
+}
+
+async function showReport(id, voter = "") {
+  const r = await api(`/evals/${id}` + (voter ? "?voter=" + voter : ""));
+  const pct = x => x == null ? "–" : Math.round(x * 100) + "%";
+  $("#erate").innerHTML = "";
+  $("#ereport").innerHTML = `<div class="card">
+    <div class="row" style="margin:0 0 8px"><b>${esc(r.run.name)}</b><span class="meta">${r.votes} votes</span>
+      <select id="evoter" style="width:auto"><option value="">all voters</option><option value="human">you</option><option value="llm">LLM judge</option></select></div>
+    <div class="tablewrap"><table><tr><th>Variant</th><th>Win rate</th><th>W/L/T</th><th>$/case</th><th>s/case</th><th>Fail</th></tr>
+    ${r.variants.map(v => `<tr><td>${esc(v.variant)}</td><td class="score">${pct(v.win_rate)}</td><td>${v.wins}/${v.losses}/${v.ties}</td><td>${v.avg_cost_usd ?? "–"}</td><td>${v.avg_wall_s ?? "–"}</td><td>${v.failures}</td></tr>`).join("")}
+    </table></div>
+    <details><summary>head-to-head (row beats column)</summary><div class="tablewrap"><table>
+      <tr><th></th>${r.variants.map(v => `<th>${esc(v.variant)}</th>`).join("")}</tr>
+      ${r.variants.map(a => `<tr><td>${esc(a.variant)}</td>${r.variants.map(b => `<td>${a.variant === b.variant ? "" : pct(r.head_to_head[a.variant][b.variant].win_rate)}</td>`).join("")}</tr>`).join("")}
+    </table></div></details>
+    <details><summary>by task type</summary><pre>${esc(JSON.stringify(r.by_task_type, null, 2))}</pre></details>
+  </div>`;
+  $("#evoter").value = voter;
+  $("#evoter").onchange = () => showReport(id, $("#evoter").value);
+}
+
+async function ratePair(id) {
+  const p = await api(`/evals/${id}/pair`);
+  $("#ereport").innerHTML = "";
+  if (p.done) { $("#erate").innerHTML = `<div class="card meta">All pairs rated. <button class="b" id="seeRep">See report</button></div>`; $("#seeRep").onclick = () => showReport(id, "human"); return; }
+  $("#erate").innerHTML = `<div class="card">
+    <div class="meta">${esc(p.task_type)} · ${p.remaining} left · blind</div>
+    <h3 style="margin:6px 0">${esc(p.prompt)}</h3>
+    <div class="pair"><div class="side"><b>A</b>\n${esc(p.left)}</div><div class="side"><b>B</b>\n${esc(p.right)}</div></div>
+    <div class="row"><button class="b ok" data-v="left">A is better</button><button class="b" data-v="tie">Tie</button><button class="b ok" data-v="right">B is better</button></div>
+  </div>`;
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = async () => { await api("/evals/vote", { method: "POST", body: JSON.stringify({ token: p.token, choice: b.dataset.v }) }); ratePair(id); });
+}
 
 async function chip() {
   try { const s = await api("/status"); $("#chip").textContent = `${s.gpu.mode} · ${s.pending} pending · $${s.budget.spent_usd}`; } catch (e) { $("#chip").textContent = "offline"; }

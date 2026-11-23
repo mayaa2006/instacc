@@ -14,7 +14,8 @@ from telegram.ext import (
 )
 
 from agent.container import Container
-from agent.tasks import TaskError
+from agent.evals.harness import EvalError
+from agent.tasks import AUTO, TaskError
 
 log = logging.getLogger(__name__)
 MAX_MSG = 3900
@@ -96,7 +97,8 @@ class TelegramBot:
         a.add_handler(CommandHandler("pending", self.cmd_pending, filters=uf))
         a.add_handler(CommandHandler("think", self.cmd_think, filters=uf))
         a.add_handler(CommandHandler("render", self.cmd_render, filters=uf))
-        a.add_handler(CommandHandler(types, self.cmd_task, filters=uf))
+        a.add_handler(CommandHandler("rate", self.cmd_rate, filters=uf))
+        a.add_handler(CommandHandler([AUTO, *types], self.cmd_task, filters=uf))
         a.add_handler(CallbackQueryHandler(self.on_button))
         a.add_handler(MessageHandler(uf & filters.TEXT & ~filters.COMMAND, self.on_text))
         c.tasks.on_event(self.on_task_event)
@@ -133,7 +135,9 @@ class TelegramBot:
         types = "\n".join(f"/{k} &lt;request&gt; — {_h(v.description)}" for k, v in self.c.settings.tasks.tasks.items())
         await update.message.reply_html(
             "<b>instacc</b>\n" + types +
+            "\n/auto &lt;request&gt; — let the router pick"
             "\n\n/pending — waiting for approval\n/status — GPU, budget\n/render [hours] · /think — GPU mode"
+            "\n/rate [eval id] — blind-rate eval pairs"
             "\n\nOr just send text and pick a task type."
         )
 
@@ -186,9 +190,39 @@ class TelegramBot:
             await update.effective_message.reply_text(f"Couldn't start: {e}")
             return
         extra = ""
-        if self.c.gpu.mode == "render" and self.c.settings.tasks.tasks[type_].sensitivity == "private":
+        cfg = self.c.settings.tasks.tasks.get(type_)
+        if self.c.gpu.mode == "render" and (cfg is None or cfg.sensitivity == "private"):
             extra = "\n(GPU is rendering; this private task will run when it returns to think mode.)"
         await update.effective_message.reply_text(f"🧠 Thinking ({type_}) · task {tid}{extra}")
+
+    async def cmd_rate(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        rid = ctx.args[0] if ctx.args else None
+        if not rid:
+            runs = [r for r in self.c.evals.list_runs() if r["status"] == "done"]
+            if not runs:
+                await update.message.reply_text("No finished eval runs yet.")
+                return
+            rid = runs[0]["id"]
+        await self._send_pair(update.effective_message, rid)
+
+    async def _send_pair(self, message, rid: str) -> None:
+        try:
+            pair = self.c.evals.next_pair(rid)
+        except EvalError as e:
+            await message.reply_text(str(e))
+            return
+        if not pair:
+            await message.reply_text(f"All pairs in eval {rid} rated. Report: /api/evals/{rid}")
+            return
+        tok = pair["token"]
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("⬅️ A", callback_data=f"v:{rid}:{tok}:left"),
+            InlineKeyboardButton("🤝 tie", callback_data=f"v:{rid}:{tok}:tie"),
+            InlineKeyboardButton("B ➡️", callback_data=f"v:{rid}:{tok}:right"),
+        ]])
+        text = (f"⚖️ <b>{_h(pair['task_type'])}</b>: {_h(pair['prompt'])}\n\n"
+                f"<b>A</b>\n{_h(pair['left'])}\n\n<b>B</b>\n{_h(pair['right'])}\n\n<i>{pair['remaining']} left</i>")
+        await message.reply_html(text[:MAX_MSG], reply_markup=kb)
 
     # --------------------------------------------------------------- inbound
     async def on_text(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -206,7 +240,7 @@ class TelegramBot:
         self._pending_text[key] = msg.text
         if len(self._pending_text) > 50:
             self._pending_text.pop(next(iter(self._pending_text)))
-        btns = [InlineKeyboardButton(k, callback_data=f"n:{key}:{k}") for k in self.c.settings.tasks.tasks]
+        btns = [InlineKeyboardButton(k, callback_data=f"n:{key}:{k}") for k in [AUTO, *self.c.settings.tasks.tasks]]
         await msg.reply_text("What should I do with this?",
                              reply_markup=InlineKeyboardMarkup([btns[i:i + 3] for i in range(0, len(btns), 3)]))
 
@@ -235,6 +269,17 @@ class TelegramBot:
                     reply_markup=ForceReply(selective=True),
                 )
                 self._rethink[m.message_id] = rest
+            elif kind == "v":
+                rid, _, rest2 = rest.partition(":")
+                tok, _, choice = rest2.rpartition(":")
+                try:
+                    self.c.evals.vote(tok, choice)
+                except EvalError as e:
+                    await q.answer(str(e)[:190], show_alert=True)
+                    return
+                await q.answer("Recorded")
+                await q.edit_message_reply_markup(None)
+                await self._send_pair(q.message, rid)
             elif kind == "x":
                 await q.answer()
                 await q.message.reply_html(format_trace(self.c.db.trace_get(rest)))

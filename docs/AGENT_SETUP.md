@@ -86,3 +86,20 @@ keep running on CPU during renders.
 python\python.exe -m pip install pytest pytest-asyncio
 python\python.exe -m pytest
 ```
+
+## Evals: is the "thinking" worth it? (Phase 2)
+`evals/golden.yaml` has 30 sample requests (hooks, captions, ideas). **Rewrite them for your persona.**
+
+Dashboard → **Eval** → enter variants → **Start eval**. Variants:
+- `pipeline`: the task type's full config
+- `pipeline:no-critique`, `pipeline:no-judge`, `pipeline:no-synth`, `pipeline:no-loops`: ablations (combine with commas)
+- `single:main`, `single:judge`, `single:alt`: one model, one answer, no deliberation
+
+Each case's top option per variant is compared in pairs:
+- **You:** Eval → Rate (or `/rate` in Telegram) shows two unlabeled answers in random order.
+- **LLM judge:** judges every pair twice with the order swapped. If the two verdicts disagree, the pair counts as a tie, which cancels the judge's position bias.
+
+The report shows win rate, W/L/T, head-to-head, cost and time per case, filterable by you vs the LLM.
+**Trust your own votes over the LLM judge's.** Drop any stage whose ablation doesn't lose.
+
+A full run of 30 cases × 3 variants takes hours on the 3090. Run it in think mode, e.g. with `limit` 10 first.

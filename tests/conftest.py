@@ -19,6 +19,7 @@ class FakeLLM:
         self.cloud_refuses = False
         self.cloud_fails = False
         self.cloud_cost = 0.002
+        self.route_to = "idea"
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         host = f"{request.url.host}:{request.url.port}" if request.url.port else request.url.host
@@ -36,6 +37,14 @@ class FakeLLM:
             return httpx.Response(503, text="upstream down")
         if "Did the model REFUSE" in user:
             content = "YES"
+        elif "Classify this request" in user:
+            content = json.dumps({"type": self.route_to, "reason": "test"})
+        elif "judging two pieces" in user:
+            o1 = user.split("OPTION 1:")[1].split("OPTION 2:")[0]
+            o2 = user.split("OPTION 2:")[1]
+            # prefers synthesized ("final") content regardless of position
+            w = "1" if "final" in o1 and "final" not in o2 else "2" if "final" in o2 and "final" not in o1 else "tie"
+            content = json.dumps({"winner": w, "reason": "test"})
         elif cloud and self.cloud_refuses:
             content = "I'm sorry, but I can't help with that request."
         elif "impartial judge" in user:
@@ -72,6 +81,7 @@ def transport(fake):
 @pytest.fixture
 def root(tmp_path, monkeypatch):
     shutil.copytree(ROOT / "config", tmp_path / "config")
+    shutil.copytree(ROOT / "evals", tmp_path / "evals")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     for k in ("INSTACC_API_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS"):
         monkeypatch.delenv(k, raising=False)

@@ -84,6 +84,7 @@ class TasksCfg(BaseModel):
     roles: dict[str, str] = Field(default_factory=dict)
     tasks: dict[str, TaskCfg]
     rubric: list[str] = Field(default_factory=list)
+    default_type: str = "hooks"   # used by the router's keyword fallback
 
 
 class Secrets(BaseModel):

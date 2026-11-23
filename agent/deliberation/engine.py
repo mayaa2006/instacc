@@ -78,11 +78,13 @@ class DeliberationEngine:
         return None, None
 
     # --------------------------------------------------------------------- run
-    async def run(self, task_id: str) -> dict:
+    async def run(self, task_id: str, cfg: TaskCfg | None = None) -> dict:
+        """Run deliberation for a stored task. `cfg` overrides the task type's config
+        (used by the eval harness to run alternative pipelines on the same request)."""
         task = self.db.task_get(task_id)
         if not task:
             raise ValueError(f"task {task_id} not found")
-        cfg = self.task_cfg(task["type"])
+        cfg = cfg or self.task_cfg(task["type"])
         persona = self.memory.persona()
         similar = await self.memory.similar(task["prompt"], k=5)
         system = P.SYSTEM.format(
