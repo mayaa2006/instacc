@@ -35,8 +35,8 @@ servers:
     model_path: llm/models/nomic-embed-text-v1.5.Q8_0.gguf                            # ~140 MB
     port: 8082
     profiles:
-      think: ["-ngl", "0", "--embedding", "-c", "2048"]
-      render: ["-ngl", "0", "--embedding", "-c", "2048"]
+      think: ["-ngl", "0", "--embedding", "--pooling", "mean", "-c", "2048"]
+      render: ["-ngl", "0", "--embedding", "--pooling", "mean", "-c", "2048"]
 
 # ComfyUI (video side). On switching back to think mode the scheduler asks ComfyUI
 # to unload its models so the LLMs get the VRAM.
