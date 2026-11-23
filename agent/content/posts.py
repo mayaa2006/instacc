@@ -165,6 +165,22 @@ class PostService:
             raise PostError(f"post is {p['status']}")
         return self._update(pid, status="dropped")
 
+    def retry(self, pid: str) -> dict:
+        """Retry a failed post from the step that failed."""
+        p = self.get(pid)
+        if p["status"] != "failed":
+            raise PostError(f"post is {p['status']}, not failed")
+        err = p.get("error") or ""
+        if err.startswith("script") or not p.get("video_job"):
+            p = self._update(pid, status="planned", error=None)
+            self._spawn(self.generate_script(pid))
+            return p
+        if err.startswith("render") or not p.get("media_path"):
+            return self._update(pid, status="render_queued", error=None)
+        if err.startswith("caption") or not p.get("caption"):
+            return self._update(pid, status="rendering", error=None)  # re-send via /rendered
+        return self._update(pid, status="scheduled", error=None, scheduled_at=time.time())
+
     # -------------------------------------------------------------- script
     async def generate_script(self, pid: str, note: str | None = None) -> dict:
         p = self.get(pid)

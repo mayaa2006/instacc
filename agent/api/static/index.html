@@ -5,432 +5,459 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>instacc</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#111214">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#5b5bd6">
 <style>
-  :root { --bg:#f6f6f7; --card:#fff; --fg:#17181a; --muted:#6b6f76; --line:#e3e4e7; --accent:#5b5bd6; --ok:#1f8a4c; --bad:#c2372f; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111214; --card:#1b1c1f; --fg:#ececee; --muted:#9a9ea6; --line:#2c2e33; --accent:#8b8bf0; --ok:#4cc27e; --bad:#f06a60; } }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
-  header { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  header h1 { font-size:17px; margin:0 8px 0 0; }
-  nav button { background:none; border:0; color:var(--muted); font:inherit; padding:6px 8px; border-radius:8px; cursor:pointer; }
-  nav button.on { color:var(--fg); background:var(--card); }
-  .chip { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:99px; padding:2px 8px; }
-  main { max-width:760px; margin:0 auto; padding:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
-  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
-  input, select, textarea { width:100%; font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px; }
-  textarea { min-height:80px; resize:vertical; }
-  button.b { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:8px 12px; cursor:pointer; }
-  button.p { background:var(--accent); border-color:var(--accent); color:#fff; }
-  button.ok { border-color:var(--ok); color:var(--ok); }
-  button.bad { border-color:var(--bad); color:var(--bad); }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
-  .task { cursor:pointer; }
-  .meta { font-size:12px; color:var(--muted); }
-  .opt { border-top:1px solid var(--line); padding:10px 0; }
-  .opt:first-of-type { border-top:0; }
-  .score { font-variant-numeric:tabular-nums; font-weight:600; }
-  pre { white-space:pre-wrap; word-break:break-word; font-size:12px; background:var(--bg); padding:8px; border-radius:8px; max-height:300px; overflow:auto; }
-  details summary { cursor:pointer; color:var(--muted); font-size:13px; padding:4px 0; }
-  .hidden { display:none; }
-  .err { color:var(--bad); font-size:13px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
-  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
-  .tablewrap { overflow-x:auto; }
-  .pair { display:grid; grid-template-columns:1fr; gap:10px; }
-  @media (min-width:640px) { .pair { grid-template-columns:1fr 1fr; } }
-  .side { border:1px solid var(--line); border-radius:10px; padding:10px; white-space:pre-wrap; }
+:root {
+  --bg:#f4f4f7; --card:#ffffff; --fg:#16171a; --muted:#6c7079; --line:#e4e5ea; --soft:#eeeef4;
+  --accent:#5b5bd6; --accent-fg:#fff; --accent-soft:#ececfb; --ok:#1c8a4b; --ok-soft:#e5f5ec; --bad:#c43a31; --bad-soft:#fbeceb; --warn:#a66a00;
+  --r:16px; --shadow:0 1px 2px rgba(16,17,26,.05), 0 4px 16px rgba(16,17,26,.05);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0f1012; --card:#1a1b1f; --fg:#ececef; --muted:#9a9ea8; --line:#2a2c31; --soft:#232429;
+  --accent:#8585f2; --accent-fg:#0f1012; --accent-soft:#25253b; --ok:#4cc27e; --ok-soft:#15291e; --bad:#f06a60; --bad-soft:#331a18; --warn:#e3a53a;
+  --shadow:none; } }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, textarea, select { font:inherit; color:inherit; }
+a { color:var(--accent); }
+
+/* layout */
+.app { min-height:100vh; }
+nav.tabs { position:fixed; left:0; right:0; bottom:0; z-index:20; display:flex; background:var(--card); border-top:1px solid var(--line); padding:6px 4px calc(6px + env(safe-area-inset-bottom)); }
+nav.tabs button { flex:1; background:none; border:0; padding:6px 0; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; color:var(--muted); cursor:pointer; position:relative; }
+nav.tabs button .ic { font-size:22px; line-height:1; filter:grayscale(1); opacity:.7; }
+nav.tabs button.on { color:var(--accent); font-weight:600; }
+nav.tabs button.on .ic { filter:none; opacity:1; }
+.badge { position:absolute; top:0; left:calc(50% + 6px); background:var(--bad); color:#fff; font-size:11px; font-weight:700; min-width:18px; height:18px; border-radius:9px; padding:0 5px; display:none; align-items:center; justify-content:center; }
+.badge.show { display:flex; }
+main { padding:16px 16px calc(96px + env(safe-area-inset-bottom)); max-width:640px; margin:0 auto; }
+.brand { display:none; }
+@media (min-width: 900px) {
+  nav.tabs { top:0; right:auto; width:232px; flex-direction:column; border-top:0; border-right:1px solid var(--line); padding:20px 12px; gap:4px; }
+  nav.tabs button { flex:0; flex-direction:row; gap:12px; padding:11px 14px; border-radius:12px; font-size:15px; justify-content:flex-start; }
+  nav.tabs button.on { background:var(--accent-soft); }
+  .badge { position:static; margin-left:auto; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:19px; padding:4px 14px 18px; }
+  .brand img { width:30px; height:30px; }
+  main { margin-left:232px; max-width:1180px; padding:28px 36px 40px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:16px; align-items:start; }
+  .grid > .card { margin:0; }
+}
+
+/* type + cards */
+h1 { font-size:26px; line-height:1.2; margin:4px 0 4px; letter-spacing:-.01em; }
+h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:26px 0 10px; font-weight:600; }
+.sub { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:12px; box-shadow:var(--shadow); }
+.kicker { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin-bottom:6px; }
+.kicker b { color:var(--fg); font-weight:600; }
+.title { font-weight:600; font-size:17px; margin:0 0 10px; }
+.muted { color:var(--muted); font-size:14px; }
+.pill { display:inline-block; font-size:12px; font-weight:600; padding:2px 9px; border-radius:99px; background:var(--soft); color:var(--muted); white-space:nowrap; }
+.pill.ok { background:var(--ok-soft); color:var(--ok); } .pill.bad { background:var(--bad-soft); color:var(--bad); } .pill.acc { background:var(--accent-soft); color:var(--accent); }
+
+/* buttons */
+.row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.btn { border:1px solid var(--line); background:var(--card); border-radius:12px; padding:11px 16px; font-weight:600; cursor:pointer; min-height:46px; }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-fg); }
+.btn.good { background:var(--ok); border-color:var(--ok); color:#fff; }
+.btn.ghost { background:none; border-color:transparent; color:var(--muted); }
+.btn.danger { color:var(--bad); }
+.btn.wide { flex:1 1 100%; }
+@media (min-width: 520px) { .btn.wide { flex:1 1 auto; } }
+.btn:disabled { opacity:.5; cursor:default; }
+.big { width:100%; min-height:56px; font-size:17px; border-radius:14px; }
+
+/* options */
+.opts { display:flex; flex-direction:column; gap:8px; }
+.opt { text-align:left; border:1.5px solid var(--line); background:var(--bg); border-radius:12px; padding:12px 14px; cursor:pointer; display:flex; gap:12px; align-items:flex-start; }
+.opt .n { flex:0 0 26px; height:26px; border-radius:50%; background:var(--soft); color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+.opt .t { flex:1; white-space:pre-wrap; }
+.opt .s { font-size:12px; color:var(--muted); font-weight:600; }
+.opt.sel { border-color:var(--accent); background:var(--accent-soft); }
+.opt.sel .n { background:var(--accent); color:var(--accent-fg); }
+textarea, input[type=text], input[type=password], input[type=datetime-local], select { width:100%; border:1.5px solid var(--line); background:var(--bg); border-radius:12px; padding:12px; }
+textarea { min-height:90px; resize:vertical; }
+textarea:focus, input:focus, select:focus { outline:none; border-color:var(--accent); }
+label.l { display:block; font-size:13px; font-weight:600; color:var(--muted); margin:14px 0 6px; }
+.chips { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+.chip { border:1.5px solid var(--line); background:var(--card); border-radius:99px; padding:8px 14px; cursor:pointer; font-weight:600; font-size:14px; }
+.chip.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+video { width:100%; max-height:45vh; border-radius:12px; background:#000; display:block; margin:4px 0 10px; }
+.shots { margin:0; padding-left:20px; font-size:14px; }
+.shots li { margin:4px 0; }
+.day { font-weight:700; margin:22px 0 8px; }
+.day:first-child { margin-top:4px; }
+.post { display:flex; gap:12px; align-items:center; cursor:pointer; }
+.post .time { flex:0 0 auto; min-width:64px; white-space:nowrap; font-weight:700; font-variant-numeric:tabular-nums; }
+.post .what { flex:1; min-width:0; }
+.post .what div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.empty { text-align:center; padding:40px 16px; color:var(--muted); }
+.empty .e { font-size:44px; }
+.stat { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.stat:last-child { border-bottom:0; }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:sp 1s linear infinite; vertical-align:-2px; }
+@keyframes sp { to { transform:rotate(360deg); } }
+.hidden { display:none !important; }
+
+/* sheet */
+dialog { border:0; padding:0; background:var(--card); color:var(--fg); width:100%; max-width:640px; max-height:92vh; border-radius:20px 20px 0 0; margin:auto auto 0; }
+dialog::backdrop { background:rgba(0,0,0,.45); }
+@media (min-width:900px) { dialog { border-radius:20px; margin:auto; } }
+.sheet { position:relative; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); overflow:auto; max-height:92vh; }
+.sheet .close { position:absolute; top:10px; right:10px; min-height:40px; padding:6px 12px; }
+.sheet .kicker { padding-right:48px; }
+#toast { position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:12px 18px; border-radius:12px; font-weight:600; z-index:50; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; }
+#toast.show { opacity:1; }
+@media (min-width:900px) { #toast { bottom:28px; left:calc(50% + 116px); } }
+.login { max-width:380px; margin:12vh auto; padding:16px; text-align:center; }
+.login img { width:64px; }
 </style>
 </head>
 <body>
-<header>
+<div id="login" class="login hidden">
+  <img src="/icon.svg" alt="">
   <h1>instacc</h1>
-  <nav>
-    <button data-view="tasks" class="on">Tasks</button>
-    <button data-view="new">New</button>
-    <button data-view="calendar">Calendar</button>
-    <button data-view="comments">Comments</button>
-    <button data-view="analytics">Analytics</button>
-    <button data-view="continuity">Continuity</button>
-    <button data-view="persona">Persona</button>
-    <button data-view="eval">Eval</button>
-    <button data-view="system">System</button>
+  <p class="sub">Enter the password from your <code>.env</code> (INSTACC_API_TOKEN).</p>
+  <input id="tok" type="password" autocomplete="current-password" placeholder="Password">
+  <div class="row"><button class="btn primary big" id="tokGo">Open</button></div>
+</div>
+
+<div class="app hidden" id="app">
+  <nav class="tabs" id="tabs">
+    <div class="brand"><img src="/icon.svg" alt="">instacc</div>
+    <button data-v="inbox" class="on"><span class="ic">📥</span>Inbox<span class="badge" id="badge"></span></button>
+    <button data-v="create"><span class="ic">✨</span>Create</button>
+    <button data-v="calendar"><span class="ic">📅</span>Calendar</button>
+    <button data-v="stats"><span class="ic">📈</span>Stats</button>
+    <button data-v="more"><span class="ic">⚙️</span>More</button>
   </nav>
-  <span class="chip" id="chip">…</span>
-</header>
-<main>
-  <div id="auth" class="card hidden">
-    <label for="tok">API token (INSTACC_API_TOKEN)</label>
-    <input id="tok" type="password" autocomplete="current-password">
-    <div class="row"><button class="b p" id="saveTok">Save</button></div>
-  </div>
+  <main id="main"></main>
+</div>
 
-  <section id="v-tasks">
-    <div class="row" style="margin:0 0 12px">
-      <select id="filter" style="width:auto">
-        <option value="awaiting_approval">Awaiting approval</option>
-        <option value="">All</option>
-        <option value="running">Running</option>
-        <option value="approved">Approved</option>
-        <option value="failed">Failed</option>
-      </select>
-      <button class="b" id="refresh">Refresh</button>
-    </div>
-    <div id="list"></div>
-    <div id="detail"></div>
-  </section>
+<dialog id="sheet"><div class="sheet" id="sheetBody"></div></dialog>
+<div id="toast"></div>
 
-  <section id="v-new" class="hidden">
-    <div class="card">
-      <label for="ttype">Task type</label>
-      <select id="ttype"></select>
-      <label for="tprompt">Request</label>
-      <textarea id="tprompt" placeholder="e.g. a video of her failing to make latte art for the 10th time"></textarea>
-      <label for="tnote">Extra direction (optional)</label>
-      <input id="tnote">
-      <div class="row"><button class="b p" id="go">Think</button><span id="newMsg" class="meta"></span></div>
-    </div>
-  </section>
-
-  <section id="v-persona" class="hidden">
-    <div class="card">
-      <div class="meta" id="pver"></div>
-      <label for="pjson">Persona Bible (JSON)</label>
-      <textarea id="pjson" style="min-height:420px;font-family:ui-monospace,monospace;font-size:13px"></textarea>
-      <div class="row"><button class="b p" id="psave">Save new version</button><span id="pmsg" class="meta"></span></div>
-    </div>
-  </section>
-
-  <section id="v-eval" class="hidden">
-    <div class="card">
-      <label for="evars">Variants to compare (comma-separated)</label>
-      <input id="evars" value="single:main, single:judge, pipeline">
-      <div class="meta">pipeline · pipeline:no-critique · pipeline:no-judge · pipeline:no-synth · pipeline:no-loops · single:&lt;slot&gt;</div>
-      <div class="row">
-        <label style="margin:0">Cases <input id="elimit" type="number" min="1" placeholder="all 30" style="width:90px"></label>
-        <label style="margin:0"><input id="ejudge" type="checkbox" checked style="width:auto"> LLM judge too</label>
-        <button class="b p" id="estart">Start eval</button><span id="emsg" class="meta"></span>
-      </div>
-    </div>
-    <div id="eruns"></div>
-    <div id="ereport"></div>
-    <div id="erate"></div>
-  </section>
-
-  <section id="v-calendar" class="hidden">
-    <div class="row" style="margin:0 0 12px">
-      <select id="pfilter" style="width:auto"><option value="active">Upcoming</option><option value="">All</option><option value="published">Published</option><option value="failed">Failed</option></select>
-      <button class="b" id="newPost">+ Post from idea</button>
-    </div>
-    <div id="plist"></div>
-    <div id="pdetail"></div>
-  </section>
-
-  <section id="v-comments" class="hidden">
-    <div class="row" style="margin:0 0 12px">
-      <select id="cfilter" style="width:auto"><option value="drafted">Drafted replies</option><option value="">All</option><option value="sent">Sent</option><option value="ignored">Ignored</option><option value="failed">Failed</option></select>
-      <button class="b" id="cpoll">Check now</button>
-    </div>
-    <div id="clist"></div>
-  </section>
-
-  <section id="v-analytics" class="hidden">
-    <div class="row" style="margin:0 0 12px"><select id="acp" style="width:auto"><option>1h</option><option selected>24h</option><option>7d</option></select></div>
-    <div id="acal" class="card"></div>
-    <div id="atable"></div>
-  </section>
-
-  <section id="v-continuity" class="hidden">
-    <div class="card">
-      <div class="row" style="margin:0">
-        <select id="lkind" style="width:auto"><option>outfit</option><option>location</option><option>prop</option><option>storyline</option><option>joke</option><option>fact</option><option>lighting</option><option>relationship</option></select>
-        <select id="lseries" style="width:auto"></select>
-      </div>
-      <label for="lkey">Name</label><input id="lkey" placeholder="e.g. apartment">
-      <label for="lval">Fact</label><input id="lval" placeholder="e.g. small top-floor flat in Alfama, blue tiles, plants everywhere">
-      <div class="row"><button class="b p" id="ladd">Add fact</button><button class="b" id="snew">+ New series</button><span id="lmsg" class="meta"></span></div>
-    </div>
-    <div id="lproposed"></div>
-    <div id="llist"></div>
-  </section>
-
-  <section id="v-system" class="hidden">
-    <div class="card">
-      <div id="sys"></div>
-      <div id="accts" style="margin-top:12px"></div>
-      <div class="row">
-        <button class="b" id="mThink">GPU → think</button>
-        <button class="b" id="mRender">GPU → render (2h)</button>
-      </div>
-    </div>
-  </section>
-</main>
 <script>
+"use strict";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let token = ""; try { token = localStorage.getItem("instacc_token") || ""; } catch (e) {}
+let view = "inbox";
+let state = { sel: {}, type: "auto" };
 
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) } });
-  if (r.status === 401) { $("#auth").classList.remove("hidden"); throw new Error("unauthorized"); }
+  if (r.status === 401) { showLogin(); throw new Error("Please sign in"); }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.detail || r.statusText);
   return body;
 }
+const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body || {}) });
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
+async function act(fn, msg) { try { await fn(); if (msg) toast(msg); } catch (e) { toast(e.message); } refresh(); }
+const mediaUrl = id => `/api/posts/${id}/media` + (token ? "?token=" + encodeURIComponent(token) : "");
+const when = ts => ts ? new Date(ts * 1000).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "not scheduled";
+const timeOnly = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function dayLabel(ts) {
+  const d = new Date(ts * 1000), t = new Date(); t.setHours(0,0,0,0);
+  const diff = Math.round((new Date(d).setHours(0,0,0,0) - t) / 864e5);
+  return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff === -1 ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
+}
+const STATUS = { planned: ["Planning", ""], scripting: ["Writing shots", ""], script_review: ["Needs you", "acc"], render_queued: ["Waiting to render", ""],
+  rendering: ["Rendering", ""], captioning: ["Writing caption", ""], caption_review: ["Needs you", "acc"], scheduled: ["Ready", "ok"],
+  publishing: ["Posting…", ""], published: ["Posted", "ok"], failed: ["Problem", "bad"], dropped: ["Dropped", ""] };
+const pill = s => { const [t, c] = STATUS[s] || [s, ""]; return `<span class="pill ${c}">${esc(t)}</span>`; };
 
-$("#saveTok").onclick = () => { token = $("#tok").value.trim(); try { localStorage.setItem("instacc_token", token); } catch (e) {} $("#auth").classList.add("hidden"); boot(); };
+function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+$("#tokGo").onclick = () => { token = $("#tok").value.trim(); try { localStorage.setItem("instacc_token", token); } catch (e) {} $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); go(view); };
+$("#tok").onkeydown = e => { if (e.key === "Enter") $("#tokGo").click(); };
 
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.view));
-function show(v) {
-  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
-  ["tasks","new","calendar","comments","analytics","continuity","persona","eval","system"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
-  if (v === "tasks") loadTasks(); if (v === "persona") loadPersona(); if (v === "system") loadSystem(); if (v === "eval") loadEvals(); if (v === "calendar") loadPosts(); if (v === "comments") loadComments(); if (v === "analytics") loadAnalytics(); if (v === "continuity") loadLedger();
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
+function go(v) {
+  view = v;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  try { history.replaceState(null, "", "#" + v); } catch (e) {}
+  window.scrollTo(0, 0);
+  refresh();
+}
+async function refresh() {
+  try {
+    if (view === "inbox") await renderInbox();
+    else if (view === "create") await renderCreate();
+    else if (view === "calendar") await renderCalendar();
+    else if (view === "stats") await renderStats();
+    else if (view === "more") await renderMore();
+    await badge();
+  } catch (e) { if (e.message !== "Please sign in") $("#main").innerHTML = `<div class="empty"><div class="e">📡</div><p>Can't reach the agent.<br><span class="muted">${esc(e.message)}</span></p><button class="btn" onclick="refresh()">Try again</button></div>`; }
+}
+async function badge() {
+  try { const n = (await api("/inbox")).length; const b = $("#badge"); b.textContent = n; b.classList.toggle("show", n > 0); document.title = n ? `(${n}) instacc` : "instacc"; } catch (e) {}
 }
 
-const ago = t => { const s = Date.now()/1000 - t; return s < 60 ? "just now" : s < 3600 ? Math.round(s/60) + "m ago" : s < 86400 ? Math.round(s/3600) + "h ago" : Math.round(s/86400) + "d ago"; };
-
-async function loadTasks() {
-  const st = $("#filter").value;
-  const tasks = await api("/tasks" + (st ? "?status=" + st : ""));
-  $("#list").innerHTML = tasks.length ? tasks.map(t => `
-    <div class="card task" data-id="${t.id}">
-      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${ago(t.created_at)}${t.result?.best_score != null ? " · best " + t.result.best_score : ""}</div>
-      <div>${esc(t.prompt)}</div>
-      ${t.note ? `<div class="meta">note: ${esc(t.note)}</div>` : ""}
-    </div>`).join("") : `<div class="meta">Nothing here.</div>`;
-  document.querySelectorAll(".task").forEach(el => el.onclick = () => openTask(el.dataset.id));
+/* ---------------- inbox ---------------- */
+function optionsHtml(id, options, multi) {
+  const sel = state.sel[id] || (multi ? [] : null);
+  return `<div class="opts">${options.map((o, i) => {
+    const on = multi ? sel.includes(i) : sel === i;
+    return `<button class="opt ${on ? "sel" : ""}" data-opt="${esc(id)}" data-i="${i}" data-multi="${multi ? 1 : 0}">
+      <span class="n">${multi && on ? "✓" : i + 1}</span><span class="t">${esc(o.text)}</span>${o.score != null ? `<span class="s">${o.score}</span>` : ""}</button>`;
+  }).join("")}</div>`;
 }
-$("#filter").onchange = loadTasks; $("#refresh").onclick = loadTasks;
+function wireOptions(root) {
+  root.querySelectorAll("[data-opt]").forEach(b => b.onclick = () => {
+    const id = b.dataset.opt, i = +b.dataset.i, multi = b.dataset.multi === "1";
+    if (multi) { const s = state.sel[id] || []; state.sel[id] = s.includes(i) ? s.filter(x => x !== i) : [...s, i]; }
+    else state.sel[id] = state.sel[id] === i ? null : i;
+    // update in place (keeps anything typed elsewhere on the page)
+    const sel = state.sel[id];
+    root.querySelectorAll(`[data-opt="${CSS.escape(id)}"]`).forEach(o => {
+      const j = +o.dataset.i, on = multi ? sel.includes(j) : sel === j;
+      o.classList.toggle("sel", on);
+      o.querySelector(".n").textContent = multi && on ? "✓" : j + 1;
+    });
+    const btn = b.closest(".card").querySelector('[data-do="approve"], [data-do="schedule"]');
+    if (btn) {
+      const n = multi ? sel.length : (sel == null ? 0 : 1);
+      btn.disabled = n === 0;
+      if (multi) btn.textContent = `Schedule ${n || ""} ${n === 1 ? "post" : "posts"}`;
+    }
+  });
+}
+async function rethinkTask(id) { const note = prompt("What should be different? (optional)"); if (note === null) return; await act(() => post(`/tasks/${id}/rethink`, { note: note || null }), "Thinking again…"); }
 
-async function openTask(id) {
-  const t = await api("/tasks/" + id);
-  const r = t.result || {};
-  const pending = t.status === "awaiting_approval";
-  const opts = (r.options || []).map((o, i) => `
-    <div class="opt">
-      <div>${o.score != null ? `<span class="score">${o.score}</span> · ` : ""}${esc(o.text)}</div>
-      ${o.rationale ? `<div class="meta">why: ${esc(o.rationale)}</div>` : ""}
-      ${o.judge_notes ? `<div class="meta">judge: ${esc(o.judge_notes)}</div>` : ""}
-      ${pending ? `<div class="row"><button class="b ok" data-approve="${i}">Approve #${i+1}</button></div>` : ""}
-    </div>`).join("");
-  const trace = (t.trace || []).map(s => `
-    <details><summary>${esc(s.stage)} · loop ${s.loop} · ${esc(s.slot || "")}${s.role ? " (" + esc(s.role) + ")" : ""} · ${s.latency_ms ?? "?"}ms${s.cost_usd ? " · $" + s.cost_usd.toFixed(4) : ""}${s.note ? " · " + esc(s.note) : ""}</summary><pre>${esc(s.output || "")}</pre></details>`).join("");
-  $("#detail").innerHTML = `
-    <div class="card">
-      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${t.id}${r.loops ? " · " + r.loops + " loop(s)" : ""}${r.below_threshold ? " · below threshold" : ""}</div>
-      <h3 style="margin:6px 0">${esc(t.prompt)}</h3>
-      ${t.error ? `<div class="err">${esc(t.error)}</div>` : ""}
-      ${t.chosen ? `<div class="meta">approved:</div><div>${esc(t.chosen.text)}</div>` : ""}
-      ${opts}
-      ${r.judge_feedback ? `<details><summary>judge feedback</summary><pre>${esc(r.judge_feedback)}</pre></details>` : ""}
-      ${(r.decision_log || []).length ? `<details><summary>decision log</summary><pre>${esc(r.decision_log.join("\n"))}</pre></details>` : ""}
-      ${pending ? `<label for="rnote">Rethink with note</label><input id="rnote"><div class="row"><button class="b" id="rethink">Rethink</button><button class="b bad" id="reject">Reject</button></div>` : ""}
-      <details><summary>full trace (${(t.trace||[]).length} steps)</summary>${trace}</details>
-    </div>`;
-  $("#detail").scrollIntoView({ behavior: "smooth" });
-  document.querySelectorAll("[data-approve]").forEach(b => b.onclick = async () => { await api(`/tasks/${id}/approve`, { method: "POST", body: JSON.stringify({ index: +b.dataset.approve }) }); openTask(id); loadTasks(); });
-  if (pending) {
-    $("#rethink").onclick = async () => { const n = await api(`/tasks/${id}/rethink`, { method: "POST", body: JSON.stringify({ note: $("#rnote").value || null }) }); $("#detail").innerHTML = `<div class="card meta">Rethinking as task ${n.id}…</div>`; loadTasks(); };
-    $("#reject").onclick = async () => { await api(`/tasks/${id}/reject`, { method: "POST" }); openTask(id); loadTasks(); };
+function card(it) {
+  const k = it.kind;
+  if (k === "caption") {
+    const s = state.sel[it.task_id];
+    return `<div class="card"><div class="kicker">🎞 <b>Video ready</b> · posts ${esc(when(it.scheduled_at))}</div>
+      <div class="title">${esc(it.title)}</div>
+      ${it.has_media ? `<video controls playsinline preload="metadata" src="${mediaUrl(it.id)}"></video>` : ""}
+      <div class="muted" style="margin-bottom:8px">Pick a caption: approving schedules the post.</div>
+      ${optionsHtml(it.task_id, it.options, false)}
+      <div class="row"><button class="btn good wide" ${s == null ? "disabled" : ""} data-do="approve" data-id="${it.task_id}">Approve &amp; schedule</button>
+      <button class="btn" data-do="rethink" data-id="${it.task_id}">New captions</button>
+      <button class="btn ghost danger" data-do="drop" data-id="${it.id}">Drop</button></div></div>`;
   }
+  if (k === "script") {
+    const j = it.job || {}, c = j.continuity || {};
+    return `<div class="card"><div class="kicker">🎬 <b>Shot list ready</b> · ${(j.shots || []).reduce((a, s) => a + (s.duration_s || 0), 0)}s · posts ${esc(when(it.scheduled_at))}</div>
+      <div class="title">${esc(j.title || it.title)}</div>
+      ${[c.outfit, c.location, c.lighting].filter(Boolean).length ? `<div class="muted">👗 ${esc([c.outfit, c.location, c.lighting].filter(Boolean).join(" · "))}</div>` : ""}
+      <ol class="shots">${(j.shots || []).map(s => `<li>${esc(s.action)}${s.dialogue ? ` <i>“${esc(s.dialogue)}”</i>` : ""}</li>`).join("")}</ol>
+      <div class="row"><button class="btn good wide" data-do="render" data-id="${it.id}">Looks good, render it</button>
+      <button class="btn" data-do="redo" data-id="${it.id}">Change…</button>
+      <button class="btn ghost danger" data-do="drop" data-id="${it.id}">Drop</button></div></div>`;
+  }
+  if (k === "plan") {
+    const n = (state.sel[it.id] || []).length;
+    return `<div class="card"><div class="kicker">🗓 <b>Ideas for your week</b> · tap the ones you like</div>
+      ${optionsHtml(it.id, it.options, true)}
+      <div class="row"><button class="btn good wide" ${n ? "" : "disabled"} data-do="schedule" data-id="${it.id}">Schedule ${n || ""} ${n === 1 ? "post" : "posts"}</button>
+      <button class="btn" data-do="rethink" data-id="${it.id}">New ideas</button>
+      <button class="btn ghost" data-do="reject" data-id="${it.id}">Dismiss</button></div></div>`;
+  }
+  if (k === "pick") {
+    const s = state.sel[it.id];
+    const label = { hooks: "Hooks", caption: "Captions", idea: "Video ideas", quick: "Ideas", reply: "Reply" }[it.type] || it.type;
+    return `<div class="card"><div class="kicker">💡 <b>${esc(label)}</b>${it.below_threshold ? ` · <span class="pill">judge wasn't fully happy</span>` : ""}</div>
+      <div class="title">${esc(it.title)}</div>
+      ${optionsHtml(it.id, it.options, false)}
+      <div class="row"><button class="btn good wide" ${s == null ? "disabled" : ""} data-do="approve" data-id="${it.id}">Keep this one</button>
+      <button class="btn" data-do="rethink" data-id="${it.id}">Try again</button>
+      <button class="btn ghost" data-do="reject" data-id="${it.id}">Dismiss</button></div></div>`;
+  }
+  if (k === "comment") {
+    const dot = { low: "🟢", medium: "🟡", high: "🔴" }[it.risk] || "⚪";
+    return `<div class="card"><div class="kicker">💬 <b>@${esc(it.username || "someone")}</b> · ${dot} ${esc(it.category || "")}</div>
+      <div style="margin-bottom:10px">“${esc(it.title)}”</div>
+      <label class="l" for="cm${it.id}">Your reply</label>
+      <textarea id="cm${it.id}" style="min-height:64px">${esc(it.draft)}</textarea>
+      <div class="row"><button class="btn good wide" data-do="send" data-id="${it.id}">Send reply</button>
+      <button class="btn ghost" data-do="skip" data-id="${it.id}">Skip</button></div></div>`;
+  }
+  if (k === "fact") {
+    return `<div class="card"><div class="kicker">🧠 <b>Remember this?</b> · ${esc(it.fact_kind)}</div>
+      <div>${esc(it.title)}</div><div class="muted" style="margin-top:6px">Future videos will stay consistent with it.</div>
+      <div class="row"><button class="btn good wide" data-do="fact-yes" data-id="${it.id}">Yes, remember</button>
+      <button class="btn ghost" data-do="fact-no" data-id="${it.id}">No</button></div></div>`;
+  }
+  if (k === "failed") {
+    return `<div class="card"><div class="kicker">⚠️ <b>Something went wrong</b></div>
+      <div class="title">${esc(it.title)}</div><div class="muted">${esc(it.error)}</div>
+      <div class="row"><button class="btn primary wide" data-do="retry" data-id="${it.id}">Try again</button>
+      <button class="btn ghost danger" data-do="drop" data-id="${it.id}">Drop</button></div></div>`;
+  }
+  return "";
+}
+function wireActions(root) {
+  root.querySelectorAll("[data-do]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.id, d = b.dataset.do;
+    b.disabled = true;
+    if (d === "approve") return act(() => post(`/tasks/${id}/approve`, { index: state.sel[id] }), "Saved ✓");
+    if (d === "schedule") return act(() => post(`/tasks/${id}/approve-many`, { indices: state.sel[id] }), "Added to your calendar ✓");
+    if (d === "rethink") return rethinkTask(id);
+    if (d === "reject") return act(() => post(`/tasks/${id}/reject`), "Dismissed");
+    if (d === "render") return act(() => post(`/posts/${id}/script/approve`), "Queued for rendering ✓");
+    if (d === "redo") { const note = prompt("What should change?"); if (note === null) { b.disabled = false; return; } return act(() => post(`/posts/${id}/script/redo`, { note: note || null }), "Rewriting…"); }
+    if (d === "drop") { if (!confirm("Drop this post?")) { b.disabled = false; return; } return act(() => post(`/posts/${id}/drop`), "Dropped"); }
+    if (d === "retry") return act(() => post(`/posts/${id}/retry`), "Retrying…");
+    if (d === "send") return act(() => post(`/comments/${id}/send`, { text: $("#cm" + id).value }), "Reply sent ✓");
+    if (d === "skip") return act(() => post(`/comments/${id}/ignore`), "Skipped");
+    if (d === "fact-yes") return act(() => post(`/continuity/${id}/confirm`), "Remembered ✓");
+    if (d === "fact-no") return act(() => api(`/continuity/${id}`, { method: "PATCH", body: JSON.stringify({ status: "retired" }) }), "Forgotten");
+  });
+}
+async function renderInbox() {
+  const [items, home] = await Promise.all([api("/inbox"), api("/home")]);
+  const n = items.length;
+  const next = home.next_post;
+  const thinking = home.thinking.length ? `<div class="card"><span class="spin"></span> &nbsp;Thinking about ${home.thinking.length === 1 ? `“${esc(home.thinking[0].prompt.slice(0, 60))}”` : home.thinking.length + " things"}…</div>` : "";
+  $("#main").innerHTML = `
+    <h1>${n ? `${n} ${n === 1 ? "thing needs" : "things need"} you` : "You're all caught up"}</h1>
+    <p class="sub">${next ? `Next post: <b>${esc(when(next.scheduled_at))}</b> · ${home.upcoming} in the pipeline` : home.upcoming ? `${home.upcoming} posts in the pipeline` : "Nothing planned yet."}</p>
+    ${thinking}
+    ${n ? `<div class="grid">${items.map(card).join("")}</div>` : `<div class="empty"><div class="e">🌿</div><p>Nothing waiting for you.</p><button class="btn primary" onclick="go('create')">Plan something</button></div>`}`;
+  wireOptions($("#main")); wireActions($("#main"));
 }
 
-$("#go").onclick = async () => {
-  try {
-    const r = await api("/tasks", { method: "POST", body: JSON.stringify({ type: $("#ttype").value, prompt: $("#tprompt").value, note: $("#tnote").value || null }) });
-    $("#newMsg").textContent = "Thinking… task " + r.id; $("#tprompt").value = ""; $("#tnote").value = "";
-  } catch (e) { $("#newMsg").textContent = e.message; }
-};
-
-async function loadPersona() {
-  try { const p = await api("/persona"); $("#pjson").value = JSON.stringify(p.data, null, 2); $("#pver").textContent = "version " + p.version + " · saved " + ago(p.created_at); }
-  catch (e) { $("#pver").textContent = e.message; }
-}
-$("#psave").onclick = async () => {
-  try { const r = await api("/persona", { method: "PUT", body: JSON.stringify(JSON.parse($("#pjson").value)) }); $("#pmsg").textContent = "saved v" + r.version; loadPersona(); }
-  catch (e) { $("#pmsg").textContent = e.message; }
-};
-
-async function loadSystem() {
-  const s = await api("/status");
-  const g = s.gpu;
-  $("#sys").innerHTML = `<div><b>GPU:</b> ${esc(g.mode)}${g.holder ? " (held by " + esc(g.holder) + ")" : ""}${g.switching ? " · switching…" : ""}</div>
-    <div class="meta">waiting for think mode: ${g.calls_waiting_for_think_mode} · in flight: ${g.inflight_local_calls}</div>
-    <div style="margin-top:8px"><b>Cloud budget:</b> $${s.budget.spent_usd} / $${s.budget.monthly_usd} this month</div>
-    <pre>${esc(JSON.stringify(g.servers, null, 2))}</pre>`;
-  loadAccounts();
-}
-$("#mThink").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "think" }) }); loadSystem(); };
-$("#mRender").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "render", holder: "manual", ttl_s: 7200 }) }); loadSystem(); };
-
-$("#estart").onclick = async () => {
-  try {
-    const body = { variants: $("#evars").value.split(",").map(x => x.trim()).filter(Boolean), auto_judge: $("#ejudge").checked ? "judge" : null };
-    if ($("#elimit").value) body.limit = +$("#elimit").value;
-    const r = await api("/evals", { method: "POST", body: JSON.stringify(body) });
-    $("#emsg").textContent = "started " + r.id; loadEvals();
-  } catch (e) { $("#emsg").textContent = e.message; }
-};
-
-async function loadEvals() {
-  const runs = await api("/evals");
-  $("#eruns").innerHTML = runs.length ? `<div class="card"><table><tr><th>Run</th><th>Status</th><th></th></tr>` + runs.map(r => `
-    <tr><td>${esc(r.name)}<div class="meta">${r.id} · ${ago(r.created_at)}</div></td>
-    <td>${esc(r.status)}${r.status === "running" ? ` · ${esc(r.progress.stage || "")} ${r.progress.done}/${r.progress.total}` : ""}${r.error ? `<div class="err">${esc(r.error)}</div>` : ""}</td>
-    <td><button class="b" data-rep="${r.id}">Report</button> <button class="b" data-rate="${r.id}">Rate</button></td></tr>`).join("") + `</table></div>` : "";
-  document.querySelectorAll("[data-rep]").forEach(b => b.onclick = () => showReport(b.dataset.rep));
-  document.querySelectorAll("[data-rate]").forEach(b => b.onclick = () => ratePair(b.dataset.rate));
+/* ---------------- create ---------------- */
+const TYPES = [["auto", "✨ Anything"], ["hooks", "🪝 Hooks"], ["caption", "✍️ Caption"], ["idea", "💡 Video ideas"]];
+async function renderCreate() {
+  const home = await api("/home");
+  $("#main").innerHTML = `
+    <h1>Create</h1><p class="sub">Ask for anything. Several models think it through and you pick the best.</p>
+    <button class="btn primary big" id="planWeek">🗓 Plan my week</button>
+    <div class="card" style="margin-top:16px">
+      <div class="chips">${TYPES.map(([k, l]) => `<button class="chip ${state.type === k ? "on" : ""}" data-t="${k}">${l}</button>`).join("")}</div>
+      <textarea id="ask" placeholder="e.g. a video of her trying latte art for the 10th time"></textarea>
+      <div class="row"><button class="btn primary big" id="askGo">Think</button></div>
+    </div>
+    <div class="card">
+      <div class="kicker"><b>Add a post directly</b></div>
+      <input id="concept" type="text" placeholder="Describe the video, it goes straight to the calendar">
+      <div class="row"><button class="btn wide" id="conceptGo">Add to calendar</button></div>
+    </div>
+    ${home.thinking.length ? `<h2>Thinking now</h2>` + home.thinking.map(t => `<div class="card"><span class="spin"></span> &nbsp;<b>${esc(t.type)}</b> · ${esc(t.prompt)}</div>`).join("") : ""}`;
+  document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { state.type = b.dataset.t; document.querySelectorAll("[data-t]").forEach(x => x.classList.toggle("on", x === b)); });
+  $("#planWeek").onclick = () => act(() => post("/tasks", { type: "plan", prompt: "Plan next week's posts: a balanced mix across the content pillars, with at least one series episode." }), "Planning your week… it'll appear in your Inbox");
+  $("#askGo").onclick = () => { const p = $("#ask").value.trim(); if (!p) return toast("Type what you want first"); act(() => post("/tasks", { type: state.type, prompt: p }), "Thinking… it'll appear in your Inbox"); };
+  $("#conceptGo").onclick = () => { const p = $("#concept").value.trim(); if (!p) return toast("Describe the video first"); act(() => post("/posts", { concept: p }), "Added. Writing the shot list…"); };
 }
 
-async function showReport(id, voter = "") {
-  const r = await api(`/evals/${id}` + (voter ? "?voter=" + voter : ""));
-  const pct = x => x == null ? "–" : Math.round(x * 100) + "%";
-  $("#erate").innerHTML = "";
-  $("#ereport").innerHTML = `<div class="card">
-    <div class="row" style="margin:0 0 8px"><b>${esc(r.run.name)}</b><span class="meta">${r.votes} votes</span>
-      <select id="evoter" style="width:auto"><option value="">all voters</option><option value="human">you</option><option value="llm">LLM judge</option></select></div>
-    <div class="tablewrap"><table><tr><th>Variant</th><th>Win rate</th><th>W/L/T</th><th>$/case</th><th>s/case</th><th>Fail</th></tr>
-    ${r.variants.map(v => `<tr><td>${esc(v.variant)}</td><td class="score">${pct(v.win_rate)}</td><td>${v.wins}/${v.losses}/${v.ties}</td><td>${v.avg_cost_usd ?? "–"}</td><td>${v.avg_wall_s ?? "–"}</td><td>${v.failures}</td></tr>`).join("")}
-    </table></div>
-    <details><summary>head-to-head (row beats column)</summary><div class="tablewrap"><table>
-      <tr><th></th>${r.variants.map(v => `<th>${esc(v.variant)}</th>`).join("")}</tr>
-      ${r.variants.map(a => `<tr><td>${esc(a.variant)}</td>${r.variants.map(b => `<td>${a.variant === b.variant ? "" : pct(r.head_to_head[a.variant][b.variant].win_rate)}</td>`).join("")}</tr>`).join("")}
-    </table></div></details>
-    <details><summary>by task type</summary><pre>${esc(JSON.stringify(r.by_task_type, null, 2))}</pre></details>
-  </div>`;
-  $("#evoter").value = voter;
-  $("#evoter").onchange = () => showReport(id, $("#evoter").value);
-}
-
-async function ratePair(id) {
-  const p = await api(`/evals/${id}/pair`);
-  $("#ereport").innerHTML = "";
-  if (p.done) { $("#erate").innerHTML = `<div class="card meta">All pairs rated. <button class="b" id="seeRep">See report</button></div>`; $("#seeRep").onclick = () => showReport(id, "human"); return; }
-  $("#erate").innerHTML = `<div class="card">
-    <div class="meta">${esc(p.task_type)} · ${p.remaining} left · blind</div>
-    <h3 style="margin:6px 0">${esc(p.prompt)}</h3>
-    <div class="pair"><div class="side"><b>A</b>\n${esc(p.left)}</div><div class="side"><b>B</b>\n${esc(p.right)}</div></div>
-    <div class="row"><button class="b ok" data-v="left">A is better</button><button class="b" data-v="tie">Tie</button><button class="b ok" data-v="right">B is better</button></div>
-  </div>`;
-  document.querySelectorAll("[data-v]").forEach(b => b.onclick = async () => { await api("/evals/vote", { method: "POST", body: JSON.stringify({ token: p.token, choice: b.dataset.v }) }); ratePair(id); });
-}
-
-const when = ts => ts ? new Date(ts * 1000).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "unscheduled";
-const tokq = () => token ? "?token=" + encodeURIComponent(token) : "";
-
-async function loadPosts() {
-  const f = $("#pfilter").value;
-  const posts = await api("/posts" + (f === "active" ? "?active=true" : f ? "?status=" + f : ""));
-  $("#plist").innerHTML = posts.length ? posts.map(p => `
-    <div class="card task" data-post="${p.id}">
-      <div class="meta">${when(p.scheduled_at)} · ${esc(p.status.replace(/_/g, " "))} · ${esc((p.platforms || []).join(", ") || "no platform enabled")}</div>
-      <div>${esc(p.concept)}</div>${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}
-    </div>`).join("") : `<div class="meta">Nothing here. Send /plan in Telegram or use + Post.</div>`;
+/* ---------------- calendar ---------------- */
+async function renderCalendar() {
+  const [upcoming, done] = await Promise.all([api("/posts?active=true"), api("/posts?status=published")]);
+  const groups = {};
+  upcoming.forEach(p => { const k = p.scheduled_at ? dayLabel(p.scheduled_at) : "Not scheduled"; (groups[k] = groups[k] || []).push(p); });
+  const row = p => `<div class="card post" data-post="${p.id}"><div class="time">${p.scheduled_at ? timeOnly(p.scheduled_at) : "–"}</div>
+    <div class="what"><div>${esc(p.concept)}</div><div class="muted">${pill(p.status)}</div></div><span class="muted">›</span></div>`;
+  $("#main").innerHTML = `<h1>Calendar</h1><p class="sub">${upcoming.length} coming up</p>
+    ${upcoming.length ? Object.entries(groups).map(([d, ps]) => `<div class="day">${esc(d)}</div>` + ps.map(row).join("")).join("") : `<div class="empty"><div class="e">📅</div><p>No posts planned.</p><button class="btn primary" onclick="go('create')">Plan my week</button></div>`}
+    ${done.length ? `<h2>Posted</h2>` + done.slice(0, 10).map(row).join("") : ""}`;
   document.querySelectorAll("[data-post]").forEach(el => el.onclick = () => openPost(el.dataset.post));
 }
-$("#pfilter").onchange = loadPosts;
-$("#newPost").onclick = async () => { const concept = prompt("Post concept:"); if (concept) { await api("/posts", { method: "POST", body: JSON.stringify({ concept }) }); loadPosts(); } };
-
 async function openPost(id) {
   const p = await api("/posts/" + id);
-  const job = p.video_job;
-  const shots = job ? job.shots.map((s, i) => `<div class="opt"><b>${i + 1}.</b> (${s.duration_s}s, ${esc(s.camera)}) ${esc(s.action)}${s.dialogue ? ` <i>"${esc(s.dialogue)}"</i>` : ""}</div>`).join("") : "";
-  const pub = Object.entries(p.published || {}).map(([k, v]) => `<div>${esc(k)}: ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.state)}</a>` : esc(v.state)}</div>`).join("");
-  $("#pdetail").innerHTML = `<div class="card">
-    <div class="meta">${p.id} · ${esc(p.status.replace(/_/g, " "))} · ${when(p.scheduled_at)}</div>
-    <h3 style="margin:6px 0">${esc(p.concept)}</h3>
-    ${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}
-    ${p.media_path ? `<video controls playsinline style="width:100%;max-height:70vh;border-radius:10px" src="/api/posts/${p.id}/media${tokq()}"></video>` : ""}
-    ${p.caption ? `<label>Caption</label><div style="white-space:pre-wrap">${esc(p.caption)}</div>` : ""}
-    ${job ? `<details ${p.status === "script_review" ? "open" : ""}><summary>shot list: ${esc(job.title || "")} · ${esc(JSON.stringify(job.continuity))}</summary>${shots}</details>` : ""}
-    ${pub}
-    <div class="row">
-      ${p.status === "script_review" ? `<button class="b ok" id="pAppr">Approve → render</button><input id="pNote" placeholder="change notes" style="flex:1;min-width:140px"><button class="b" id="pRedo">Redo</button>` : ""}
-      ${p.status === "caption_review" && p.caption_task_id ? `<button class="b ok" id="pCap">Pick caption</button>` : ""}
-      ${p.status === "scheduled" ? `<button class="b" id="pNow">Post now</button>` : ""}
-      ${!["published", "publishing", "dropped"].includes(p.status) ? `<input id="pWhen" type="datetime-local" style="width:auto"><button class="b" id="pRes">Reschedule</button><button class="b bad" id="pDrop">Drop</button>` : ""}
+  const j = p.video_job;
+  const links = Object.entries(p.published || {}).map(([k, v]) => `<div class="stat"><span>${esc(k)}</span>${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">open ↗</a>` : `<span class="muted">${esc(v.state === "in_drafts" ? "in TikTok drafts" : v.state)}</span>`}</div>`).join("");
+  const editable = !["published", "publishing", "dropped"].includes(p.status);
+  $("#sheetBody").innerHTML = `<button class="btn ghost close" id="shClose">✕</button>
+    <div class="kicker">${pill(p.status)} · ${esc(when(p.scheduled_at))}</div>
+    <div class="title" style="font-size:19px">${esc(p.concept)}</div>
+    ${p.error ? `<div class="muted" style="color:var(--bad)">${esc(p.error)}</div>` : ""}
+    ${p.media_path ? `<video controls playsinline preload="metadata" src="${mediaUrl(p.id)}"></video>` : ""}
+    ${p.caption ? `<label class="l">Caption</label><div style="white-space:pre-wrap">${esc(p.caption)}</div>` : ""}
+    ${j ? `<label class="l">Shots</label><ol class="shots">${j.shots.map(s => `<li>${esc(s.action)}</li>`).join("")}</ol>` : ""}
+    ${links ? `<label class="l">Posted to</label>${links}` : ""}
+    ${editable ? `<label class="l" for="resched">Move to</label><input id="resched" type="datetime-local">
+      <div class="row"><button class="btn wide" id="shMove">Move</button>${p.status === "scheduled" ? `<button class="btn primary wide" id="shNow">Post now</button>` : ""}
+      ${p.status === "failed" ? `<button class="btn primary wide" id="shRetry">Try again</button>` : ""}<button class="btn ghost danger" id="shDrop">Drop</button></div>` : ""}`;
+  const dlg = $("#sheet"); dlg.showModal();
+  $("#shClose").onclick = () => dlg.close();
+  const close = msg => () => { dlg.close(); toast(msg); refresh(); };
+  const on = (sel, fn, msg) => { const el = $(sel); if (el) el.onclick = async () => { try { await fn(); close(msg)(); } catch (e) { toast(e.message); } }; };
+  on("#shMove", () => { const v = $("#resched").value; if (!v) throw new Error("Pick a date and time"); return post(`/posts/${id}/reschedule`, { scheduled_at: new Date(v).getTime() / 1000 }); }, "Moved ✓");
+  on("#shNow", () => post(`/posts/${id}/publish-now`), "Posting…");
+  on("#shRetry", () => post(`/posts/${id}/retry`), "Retrying…");
+  on("#shDrop", () => { if (!confirm("Drop this post?")) throw new Error("Kept"); return post(`/posts/${id}/drop`); }, "Dropped");
+}
+$("#sheet").addEventListener("click", e => { if (e.target === $("#sheet")) $("#sheet").close(); });
+
+/* ---------------- stats ---------------- */
+async function renderStats() {
+  const [a, home] = await Promise.all([api("/analytics?checkpoint=24h"), api("/home")]);
+  const fmt = n => n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : Math.round(n);
+  const total = a.posts.reduce((s, r) => s + (r.views || 0), 0);
+  $("#main").innerHTML = `<h1>Stats</h1><p class="sub">Results 24 hours after each post</p>
+    <div class="grid">
+      <div class="card"><div class="kicker"><b>Views (24h, all posts)</b></div><div style="font-size:34px;font-weight:700">${fmt(total)}</div><div class="muted">${a.posts.length} post results</div></div>
+      <div class="card"><div class="kicker"><b>Is the AI judge right?</b></div><div>${esc(a.calibration.verdict)}</div></div>
+      <div class="card"><div class="kicker"><b>Cloud spending this month</b></div><div style="font-size:24px;font-weight:700">$${home.budget.spent} <span class="muted" style="font-size:15px">of $${home.budget.limit}</span></div></div>
+    </div>
+    <h2>Best posts</h2>
+    ${a.posts.length ? `<div class="card">${a.posts.slice(0, 15).map(r => `<div class="stat"><div style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.concept)}</a>` : esc(r.concept)}</div><div class="muted">${esc(r.platform)}${r.engagement_rate != null ? ` · ${(r.engagement_rate * 100).toFixed(1)}% engaged` : ""}</div></div><b>${fmt(r.views)}</b></div>`).join("")}</div>`
+      : `<div class="empty"><div class="e">📈</div><p>Results show up a day after your first post.</p></div>`}`;
+}
+
+/* ---------------- more ---------------- */
+async function renderMore() {
+  const [persona, facts, acc, home] = await Promise.all([api("/persona").catch(() => null), api("/continuity"), api("/accounts"), api("/home")]);
+  const p = (persona && persona.data) || {};
+  const lines = a => (a || []).join("\n");
+  const ig = acc.instagram, tt = acc.tiktok;
+  $("#main").innerHTML = `<h1>More</h1>
+    <div class="grid">
+    <div class="card"><div class="kicker"><b>Accounts</b></div>
+      <div class="stat"><span>Instagram</span><span>${ig.enabled ? (ig.connected ? `<span class="pill ok">connected</span>` : `<span class="pill bad">add token in .env</span>`) : `<span class="pill">off</span>`}</span></div>
+      <div class="stat"><span>TikTok</span><span>${tt.enabled ? (tt.connected ? `<span class="pill ok">connected</span>` : `<button class="btn" id="ttc">Connect</button>`) : `<span class="pill">off</span>`}</span></div>
+      <div class="stat"><span>Graphics card</span><span><button class="chip ${home.gpu === "think" ? "on" : ""}" id="gThink">🧠 Thinking</button> <button class="chip ${home.gpu === "render" ? "on" : ""}" id="gRender">🎬 Rendering</button></span></div>
+    </div>
+    <div class="card"><div class="kicker"><b>Your character</b></div>
+      <label class="l" for="pName">Name</label><input id="pName" type="text" value="${esc(p.name)}">
+      <label class="l" for="pHandle">Handle</label><input id="pHandle" type="text" value="${esc(p.handle)}">
+      <label class="l" for="pTag">One-line vibe</label><input id="pTag" type="text" value="${esc(p.tagline)}">
+      <label class="l" for="pTone">How she talks</label><input id="pTone" type="text" value="${esc((p.voice || {}).tone)}">
+      <label class="l" for="pLook">How she looks</label><textarea id="pLook">${esc((p.visual || {}).appearance)}</textarea>
+      <label class="l" for="pPillars">Topics (one per line)</label><textarea id="pPillars">${esc(lines(p.content_pillars))}</textarea>
+      <label class="l" for="pAud">Audience</label><input id="pAud" type="text" value="${esc(p.audience)}">
+      <label class="l" for="pDo">Always (one per line)</label><textarea id="pDo">${esc(lines(p.do))}</textarea>
+      <label class="l" for="pDont">Never (one per line)</label><textarea id="pDont">${esc(lines(p.dont))}</textarea>
+      <div class="row"><button class="btn primary wide" id="pSave">Save character</button></div>
+    </div>
+    <div class="card"><div class="kicker"><b>Story facts</b> · keeps videos consistent</div>
+      ${facts.filter(f => f.status === "active").map(f => `<div class="stat"><div><span class="muted">${esc(f.kind)}</span> · <b>${esc(f.key)}</b>: ${esc(f.value)}</div><button class="btn ghost" data-forget="${f.id}">✕</button></div>`).join("") || `<div class="muted">None yet. They're suggested from approved videos, or add one:</div>`}
+      <div class="row"><select id="fKind" style="flex:0 0 140px">${["outfit","location","prop","storyline","joke","fact","lighting","relationship"].map(k => `<option>${k}</option>`).join("")}</select>
+      <input id="fKey" type="text" placeholder="name, e.g. apartment" style="flex:1;min-width:140px"></div>
+      <div class="row"><input id="fVal" type="text" placeholder="the fact" style="flex:1"><button class="btn" id="fAdd">Add</button></div>
+    </div>
+    <div class="card"><div class="kicker"><b>Advanced</b></div>
+      <div class="stat"><span>Evals, traces, raw settings</span><a href="/classic">Open classic view ↗</a></div>
+      <div class="stat"><span>Sign out on this device</span><button class="btn ghost" id="logout">Sign out</button></div>
     </div></div>`;
-  const on = (sel, fn) => { const el = $(sel); if (el) el.onclick = async () => { try { await fn(); } catch (e) { alert(e.message); } openPost(id); loadPosts(); }; };
-  on("#pAppr", () => api(`/posts/${id}/script/approve`, { method: "POST" }));
-  on("#pRedo", () => api(`/posts/${id}/script/redo`, { method: "POST", body: JSON.stringify({ note: $("#pNote").value || null }) }));
-  on("#pNow", () => api(`/posts/${id}/publish-now`, { method: "POST" }));
-  on("#pDrop", () => api(`/posts/${id}/drop`, { method: "POST" }));
-  on("#pRes", () => api(`/posts/${id}/reschedule`, { method: "POST", body: JSON.stringify({ scheduled_at: new Date($("#pWhen").value).getTime() / 1000 }) }));
-  const cap = $("#pCap"); if (cap) cap.onclick = () => { show("tasks"); openTask(p.caption_task_id); };
-  $("#pdetail").scrollIntoView({ behavior: "smooth" });
+  const ttc = $("#ttc"); if (ttc) ttc.onclick = async () => { try { const r = await api("/accounts/tiktok/connect"); window.open(r.url, "_blank"); } catch (e) { toast(e.message); } };
+  $("#gThink").onclick = () => act(() => post("/gpu/mode", { mode: "think" }), "GPU is thinking");
+  $("#gRender").onclick = () => act(() => post("/gpu/mode", { mode: "render", holder: "manual", ttl_s: 7200 }), "GPU reserved for video (2h)");
+  const split = id => $(id).value.split("\n").map(x => x.trim()).filter(Boolean);
+  $("#pSave").onclick = () => act(() => api("/persona", { method: "PUT", body: JSON.stringify({ ...p, name: $("#pName").value.trim() || "Unnamed", handle: $("#pHandle").value.trim(),
+    tagline: $("#pTag").value.trim(), voice: { ...(p.voice || {}), tone: $("#pTone").value.trim() }, visual: { ...(p.visual || {}), appearance: $("#pLook").value.trim() },
+    content_pillars: split("#pPillars"), audience: $("#pAud").value.trim(), do: split("#pDo"), dont: split("#pDont") }) }), "Character saved ✓");
+  $("#fAdd").onclick = () => { if (!$("#fKey").value.trim() || !$("#fVal").value.trim()) return toast("Fill in both fields"); act(() => post("/continuity", { kind: $("#fKind").value, key: $("#fKey").value, value: $("#fVal").value }), "Fact added ✓"); };
+  document.querySelectorAll("[data-forget]").forEach(b => b.onclick = () => act(() => api(`/continuity/${b.dataset.forget}`, { method: "PATCH", body: JSON.stringify({ status: "retired" }) }), "Forgotten"));
+  $("#logout").onclick = () => { try { localStorage.removeItem("instacc_token"); } catch (e) {} token = ""; showLogin(); };
 }
 
-async function loadComments() {
-  const f = $("#cfilter").value;
-  const cs = await api("/comments" + (f ? "?status=" + f : ""));
-  const dot = r => ({ low: "🟢", medium: "🟡", high: "🔴" }[r] || "⚪");
-  $("#clist").innerHTML = cs.length ? cs.map(cm => `
-    <div class="card">
-      <div class="meta">${dot(cm.risk)} ${esc(cm.category || "")} · @${esc(cm.username || "?")} · ${esc(cm.platform)} · ${esc(cm.status)}</div>
-      <div>«${esc(cm.text)}»</div>
-      ${cm.status === "drafted" || cm.status === "failed" ? `<textarea data-draft="${cm.id}" style="min-height:60px;margin-top:8px">${esc(cm.draft || "")}</textarea>
-        <div class="row"><button class="b ok" data-send="${cm.id}">Send</button><button class="b" data-ign="${cm.id}">Ignore</button></div>` : cm.draft ? `<div class="meta">↪️ ${esc(cm.draft)}</div>` : ""}
-      ${cm.error ? `<div class="err">${esc(cm.error)}</div>` : ""}
-    </div>`).join("") : `<div class="meta">Nothing here.</div>`;
-  document.querySelectorAll("[data-send]").forEach(b => b.onclick = async () => { const t = document.querySelector(`[data-draft="${b.dataset.send}"]`).value; await api(`/comments/${b.dataset.send}/send`, { method: "POST", body: JSON.stringify({ text: t }) }); loadComments(); });
-  document.querySelectorAll("[data-ign]").forEach(b => b.onclick = async () => { await api(`/comments/${b.dataset.ign}/ignore`, { method: "POST" }); loadComments(); });
-}
-$("#cfilter").onchange = loadComments;
-$("#cpoll").onclick = async () => { await api("/comments/poll", { method: "POST" }); loadComments(); };
-
-async function loadAnalytics() {
-  const a = await api("/analytics?checkpoint=" + $("#acp").value);
-  const cal = a.calibration;
-  $("#acal").innerHTML = `<b>Does the judge predict real results?</b><div style="margin-top:6px">${esc(cal.verdict)}</div>
-    <div class="meta">posts: ${cal.n} · rank correlation with views: ${cal.spearman_judge_vs_views ?? "–"} · with engagement: ${cal.spearman_judge_vs_engagement_rate ?? "–"}</div>`;
-  $("#atable").innerHTML = a.posts.length ? `<div class="card tablewrap"><table><tr><th>Post</th><th>Views</th><th>ER</th><th>Judge</th></tr>` +
-    a.posts.map(r => `<tr><td>${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.concept.slice(0, 70))}</a>` : esc(r.concept.slice(0, 70))}<div class="meta">${esc(r.platform)}</div></td><td>${r.views ?? "–"}</td><td>${r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + "%" : "–"}</td><td>${r.judge_score ?? "–"}</td></tr>`).join("") + `</table></div>` : `<div class="meta">No metrics yet. They arrive 1h / 24h / 7d after each post.</div>`;
-}
-$("#acp").onchange = loadAnalytics;
-
-async function loadLedger() {
-  const [series, all] = await Promise.all([api("/series"), api("/continuity")]);
-  const names = Object.fromEntries(series.map(s => [s.id, s.name]));
-  $("#lseries").innerHTML = `<option value="">whole persona</option>` + series.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
-  const row = e => `<div class="opt"><span class="meta">[${esc(e.kind)}${e.series_id ? " · " + esc(names[e.series_id] || e.series_id) : ""}]</span> <b>${esc(e.key)}</b>: ${esc(e.value)}
-    <div class="row" style="margin-top:4px">${e.status === "proposed" ? `<button class="b ok" data-conf="${e.id}">Confirm</button>` : ""}<button class="b" data-ret="${e.id}">Retire</button></div></div>`;
-  const prop = all.filter(e => e.status === "proposed"), act = all.filter(e => e.status === "active");
-  $("#lproposed").innerHTML = prop.length ? `<div class="card"><b>Proposed from approved content</b>${prop.map(row).join("")}</div>` : "";
-  $("#llist").innerHTML = `<div class="card"><b>Active facts</b>${act.length ? act.map(row).join("") : `<div class="meta">None yet.</div>`}</div>`;
-  document.querySelectorAll("[data-conf]").forEach(b => b.onclick = async () => { await api(`/continuity/${b.dataset.conf}/confirm`, { method: "POST" }); loadLedger(); });
-  document.querySelectorAll("[data-ret]").forEach(b => b.onclick = async () => { await api(`/continuity/${b.dataset.ret}`, { method: "PATCH", body: JSON.stringify({ status: "retired" }) }); loadLedger(); });
-}
-$("#ladd").onclick = async () => {
-  try { await api("/continuity", { method: "POST", body: JSON.stringify({ kind: $("#lkind").value, key: $("#lkey").value, value: $("#lval").value, series_id: $("#lseries").value || null }) }); $("#lkey").value = $("#lval").value = ""; loadLedger(); }
-  catch (e) { $("#lmsg").textContent = e.message; }
-};
-$("#snew").onclick = async () => { const name = prompt("Series name:"); if (name) { await api("/series", { method: "POST", body: JSON.stringify({ name, description: prompt("One-line description:") || "" }) }); loadLedger(); } };
-
-async function loadAccounts() {
-  const a = await api("/accounts");
-  const ig = a.instagram, tt = a.tiktok;
-  $("#accts").innerHTML = `<b>Accounts</b>
-    <div>Instagram: ${ig.enabled ? (ig.connected ? "✅ connected" : "⚠️ set IG_USER_ID / IG_ACCESS_TOKEN in .env") : "off"} <span class="meta">(${esc(ig.login)} login)</span></div>
-    <div>TikTok: ${tt.enabled ? (tt.connected ? `✅ connected · token renews automatically (${tt.refresh_expires_in_days} days left)` : `<button class="b" id="ttc">Connect TikTok</button>`) : "off"} <span class="meta">(${esc(tt.mode)} mode)</span></div>
-    ${tt.enabled && !tt.connected ? `<div class="row"><input id="ttcode" placeholder="…or paste the code= value from the redirect URL"><button class="b" id="ttsend">Use code</button></div>` : ""}
-    <div class="meta">autopilot: ${a.autopilot.running ? "running" : "stopped"}${a.autopilot.last_error ? " · " + esc(a.autopilot.last_error) : ""}</div>`;
-  const c = $("#ttc"); if (c) c.onclick = async () => { const r = await api("/accounts/tiktok/connect"); window.open(r.url, "_blank"); };
-  const s = $("#ttsend"); if (s) s.onclick = async () => { try { await api("/accounts/tiktok/code", { method: "POST", body: JSON.stringify({ code: $("#ttcode").value }) }); loadAccounts(); } catch (e) { alert(e.message); } };
-}
-
-async function chip() {
-  try { const s = await api("/status"); $("#chip").textContent = `${s.gpu.mode} · ${s.pending} pending · $${s.budget.spent_usd}`; } catch (e) { $("#chip").textContent = "offline"; }
-}
-
-async function boot() {
-  try {
-    const types = await api("/task-types");
-    $("#ttype").innerHTML = Object.entries(types).map(([k, v]) => `<option value="${k}">${k} — ${esc(v.description)} (${v.sensitivity})</option>`).join("");
-    loadTasks(); chip();
-  } catch (e) {}
-}
-boot(); setInterval(chip, 15000);
+/* ---------------- boot ---------------- */
+$("#app").classList.remove("hidden");
+const VIEWS = ["inbox", "create", "calendar", "stats", "more"];
+window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (VIEWS.includes(v) && v !== view) go(v); });
+const start = (location.hash || "").slice(1);
+go(VIEWS.includes(start) ? start : "inbox");
+setInterval(() => { if (!document.hidden && !$("#sheet").open && !document.activeElement.matches("textarea, input")) refresh(); }, 20000);
 </script>
 </body>
 </html>

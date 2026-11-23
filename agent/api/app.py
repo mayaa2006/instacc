@@ -161,6 +161,14 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
     def index():
         return FileResponse(STATIC / "index.html")
 
+    @app.get("/classic")
+    def classic():
+        return FileResponse(STATIC / "classic.html")
+
+    @app.get("/icon.svg")
+    def icon():
+        return FileResponse(STATIC / "icon.svg", media_type="image/svg+xml")
+
     @app.get("/manifest.webmanifest")
     def manifest():
         return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
@@ -191,6 +199,71 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
                        "spent_usd": round(cont.db.cloud_spend_this_month(), 4)},
             "pending": len(cont.db.task_list(status="awaiting_approval")),
         }
+
+    @api.get("/home")
+    def home(request: Request):
+        cont = c(request)
+        upcoming = cont.posts.list(active_only=True)
+        nxt = next((p for p in upcoming if p["status"] == "scheduled"), None)
+        published = cont.posts.list(status="published", limit=5)
+        return {
+            "inbox": len(build_inbox(cont)),
+            "next_post": nxt,
+            "upcoming": len(upcoming),
+            "in_production": sum(p["status"] in ("scripting", "render_queued", "rendering", "captioning")
+                                 for p in upcoming),
+            "thinking": [{"id": t["id"], "type": t["type"], "prompt": t["prompt"]}
+                         for t in cont.db.task_list(status="running", limit=10)
+                         + cont.db.task_list(status="queued", limit=10)],
+            "recent": published,
+            "gpu": cont.gpu.mode,
+            "budget": {"spent": round(cont.db.cloud_spend_this_month(), 2),
+                       "limit": settings.agent.budget.monthly_usd},
+            "verdict": cont.analytics.calibration()["verdict"],
+            "platforms": cont.posts.enabled_platforms(),
+        }
+
+    def build_inbox(cont) -> list[dict]:
+        items: list[dict] = []
+        for t in cont.db.task_list(status="awaiting_approval", limit=50):
+            if (t.get("source") or "").startswith("post:"):
+                continue  # shown with its post as a caption item
+            items.append({"kind": "plan" if t["type"] == "plan" else "pick", "id": t["id"], "at": t["updated_at"],
+                          "title": t["prompt"], "type": t["type"], "note": t.get("note"),
+                          "options": (t["result"] or {}).get("options", []),
+                          "below_threshold": (t["result"] or {}).get("below_threshold")})
+        for p in cont.posts.list(status="script_review"):
+            items.append({"kind": "script", "id": p["id"], "at": p["updated_at"], "title": p["concept"],
+                          "scheduled_at": p["scheduled_at"], "job": p["video_job"]})
+        for p in cont.posts.list(status="caption_review"):
+            t = cont.db.task_get(p["caption_task_id"]) if p.get("caption_task_id") else None
+            if not t or t["status"] != "awaiting_approval":
+                continue
+            items.append({"kind": "caption", "id": p["id"], "task_id": t["id"], "at": p["updated_at"],
+                          "title": p["concept"], "scheduled_at": p["scheduled_at"],
+                          "has_media": bool(p.get("media_path")),
+                          "options": (t["result"] or {}).get("options", [])})
+        for p in cont.posts.list(status="failed"):
+            items.append({"kind": "failed", "id": p["id"], "at": p["updated_at"], "title": p["concept"],
+                          "error": p.get("error")})
+        for cm in cont.comments.list(status="drafted", limit=50):
+            items.append({"kind": "comment", "id": cm["id"], "at": cm["posted_at"] or cm["created_at"],
+                          "title": cm["text"], "username": cm["username"], "risk": cm["risk"],
+                          "category": cm["category"], "draft": cm["draft"]})
+        for e in cont.continuity.entries(status="proposed"):
+            items.append({"kind": "fact", "id": e["id"], "at": e["created_at"], "title": f"{e['key']}: {e['value']}",
+                          "fact_kind": e["kind"]})
+        order = {"failed": 0, "caption": 1, "script": 2, "plan": 3, "pick": 4, "comment": 5, "fact": 6}
+        items.sort(key=lambda i: (order[i["kind"]], -(i["at"] or 0)))
+        return items
+
+    @api.get("/inbox")
+    def inbox(request: Request):
+        return build_inbox(c(request))
+
+    @api.post("/posts/{pid}/retry")
+    async def retry_post(pid: str, request: Request):
+        return post_call(c(request).posts.retry, pid)
 
     @api.get("/persona")
     def get_persona(request: Request):

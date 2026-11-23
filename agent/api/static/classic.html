@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>instacc</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#111214">
+<style>
+  :root { --bg:#f6f6f7; --card:#fff; --fg:#17181a; --muted:#6b6f76; --line:#e3e4e7; --accent:#5b5bd6; --ok:#1f8a4c; --bad:#c2372f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111214; --card:#1b1c1f; --fg:#ececee; --muted:#9a9ea6; --line:#2c2e33; --accent:#8b8bf0; --ok:#4cc27e; --bad:#f06a60; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0 8px 0 0; }
+  nav button { background:none; border:0; color:var(--muted); font:inherit; padding:6px 8px; border-radius:8px; cursor:pointer; }
+  nav button.on { color:var(--fg); background:var(--card); }
+  .chip { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:99px; padding:2px 8px; }
+  main { max-width:760px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
+  input, select, textarea { width:100%; font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px; }
+  textarea { min-height:80px; resize:vertical; }
+  button.b { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button.p { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.ok { border-color:var(--ok); color:var(--ok); }
+  button.bad { border-color:var(--bad); color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .task { cursor:pointer; }
+  .meta { font-size:12px; color:var(--muted); }
+  .opt { border-top:1px solid var(--line); padding:10px 0; }
+  .opt:first-of-type { border-top:0; }
+  .score { font-variant-numeric:tabular-nums; font-weight:600; }
+  pre { white-space:pre-wrap; word-break:break-word; font-size:12px; background:var(--bg); padding:8px; border-radius:8px; max-height:300px; overflow:auto; }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; padding:4px 0; }
+  .hidden { display:none; }
+  .err { color:var(--bad); font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  .tablewrap { overflow-x:auto; }
+  .pair { display:grid; grid-template-columns:1fr; gap:10px; }
+  @media (min-width:640px) { .pair { grid-template-columns:1fr 1fr; } }
+  .side { border:1px solid var(--line); border-radius:10px; padding:10px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>instacc</h1>
+  <nav>
+    <button data-view="tasks" class="on">Tasks</button>
+    <button data-view="new">New</button>
+    <button data-view="calendar">Calendar</button>
+    <button data-view="comments">Comments</button>
+    <button data-view="analytics">Analytics</button>
+    <button data-view="continuity">Continuity</button>
+    <button data-view="persona">Persona</button>
+    <button data-view="eval">Eval</button>
+    <button data-view="system">System</button>
+  </nav>
+  <span class="chip" id="chip">…</span>
+</header>
+<main>
+  <div id="auth" class="card hidden">
+    <label for="tok">API token (INSTACC_API_TOKEN)</label>
+    <input id="tok" type="password" autocomplete="current-password">
+    <div class="row"><button class="b p" id="saveTok">Save</button></div>
+  </div>
+
+  <section id="v-tasks">
+    <div class="row" style="margin:0 0 12px">
+      <select id="filter" style="width:auto">
+        <option value="awaiting_approval">Awaiting approval</option>
+        <option value="">All</option>
+        <option value="running">Running</option>
+        <option value="approved">Approved</option>
+        <option value="failed">Failed</option>
+      </select>
+      <button class="b" id="refresh">Refresh</button>
+    </div>
+    <div id="list"></div>
+    <div id="detail"></div>
+  </section>
+
+  <section id="v-new" class="hidden">
+    <div class="card">
+      <label for="ttype">Task type</label>
+      <select id="ttype"></select>
+      <label for="tprompt">Request</label>
+      <textarea id="tprompt" placeholder="e.g. a video of her failing to make latte art for the 10th time"></textarea>
+      <label for="tnote">Extra direction (optional)</label>
+      <input id="tnote">
+      <div class="row"><button class="b p" id="go">Think</button><span id="newMsg" class="meta"></span></div>
+    </div>
+  </section>
+
+  <section id="v-persona" class="hidden">
+    <div class="card">
+      <div class="meta" id="pver"></div>
+      <label for="pjson">Persona Bible (JSON)</label>
+      <textarea id="pjson" style="min-height:420px;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+      <div class="row"><button class="b p" id="psave">Save new version</button><span id="pmsg" class="meta"></span></div>
+    </div>
+  </section>
+
+  <section id="v-eval" class="hidden">
+    <div class="card">
+      <label for="evars">Variants to compare (comma-separated)</label>
+      <input id="evars" value="single:main, single:judge, pipeline">
+      <div class="meta">pipeline · pipeline:no-critique · pipeline:no-judge · pipeline:no-synth · pipeline:no-loops · single:&lt;slot&gt;</div>
+      <div class="row">
+        <label style="margin:0">Cases <input id="elimit" type="number" min="1" placeholder="all 30" style="width:90px"></label>
+        <label style="margin:0"><input id="ejudge" type="checkbox" checked style="width:auto"> LLM judge too</label>
+        <button class="b p" id="estart">Start eval</button><span id="emsg" class="meta"></span>
+      </div>
+    </div>
+    <div id="eruns"></div>
+    <div id="ereport"></div>
+    <div id="erate"></div>
+  </section>
+
+  <section id="v-calendar" class="hidden">
+    <div class="row" style="margin:0 0 12px">
+      <select id="pfilter" style="width:auto"><option value="active">Upcoming</option><option value="">All</option><option value="published">Published</option><option value="failed">Failed</option></select>
+      <button class="b" id="newPost">+ Post from idea</button>
+    </div>
+    <div id="plist"></div>
+    <div id="pdetail"></div>
+  </section>
+
+  <section id="v-comments" class="hidden">
+    <div class="row" style="margin:0 0 12px">
+      <select id="cfilter" style="width:auto"><option value="drafted">Drafted replies</option><option value="">All</option><option value="sent">Sent</option><option value="ignored">Ignored</option><option value="failed">Failed</option></select>
+      <button class="b" id="cpoll">Check now</button>
+    </div>
+    <div id="clist"></div>
+  </section>
+
+  <section id="v-analytics" class="hidden">
+    <div class="row" style="margin:0 0 12px"><select id="acp" style="width:auto"><option>1h</option><option selected>24h</option><option>7d</option></select></div>
+    <div id="acal" class="card"></div>
+    <div id="atable"></div>
+  </section>
+
+  <section id="v-continuity" class="hidden">
+    <div class="card">
+      <div class="row" style="margin:0">
+        <select id="lkind" style="width:auto"><option>outfit</option><option>location</option><option>prop</option><option>storyline</option><option>joke</option><option>fact</option><option>lighting</option><option>relationship</option></select>
+        <select id="lseries" style="width:auto"></select>
+      </div>
+      <label for="lkey">Name</label><input id="lkey" placeholder="e.g. apartment">
+      <label for="lval">Fact</label><input id="lval" placeholder="e.g. small top-floor flat in Alfama, blue tiles, plants everywhere">
+      <div class="row"><button class="b p" id="ladd">Add fact</button><button class="b" id="snew">+ New series</button><span id="lmsg" class="meta"></span></div>
+    </div>
+    <div id="lproposed"></div>
+    <div id="llist"></div>
+  </section>
+
+  <section id="v-system" class="hidden">
+    <div class="card">
+      <div id="sys"></div>
+      <div id="accts" style="margin-top:12px"></div>
+      <div class="row">
+        <button class="b" id="mThink">GPU → think</button>
+        <button class="b" id="mRender">GPU → render (2h)</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let token = ""; try { token = localStorage.getItem("instacc_token") || ""; } catch (e) {}
+
+async function api(path, opts = {}) {
+  const r = await fetch("/api" + path, { ...opts, headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) } });
+  if (r.status === 401) { $("#auth").classList.remove("hidden"); throw new Error("unauthorized"); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
+$("#saveTok").onclick = () => { token = $("#tok").value.trim(); try { localStorage.setItem("instacc_token", token); } catch (e) {} $("#auth").classList.add("hidden"); boot(); };
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.view));
+function show(v) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  ["tasks","new","calendar","comments","analytics","continuity","persona","eval","system"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
+  if (v === "tasks") loadTasks(); if (v === "persona") loadPersona(); if (v === "system") loadSystem(); if (v === "eval") loadEvals(); if (v === "calendar") loadPosts(); if (v === "comments") loadComments(); if (v === "analytics") loadAnalytics(); if (v === "continuity") loadLedger();
+}
+
+const ago = t => { const s = Date.now()/1000 - t; return s < 60 ? "just now" : s < 3600 ? Math.round(s/60) + "m ago" : s < 86400 ? Math.round(s/3600) + "h ago" : Math.round(s/86400) + "d ago"; };
+
+async function loadTasks() {
+  const st = $("#filter").value;
+  const tasks = await api("/tasks" + (st ? "?status=" + st : ""));
+  $("#list").innerHTML = tasks.length ? tasks.map(t => `
+    <div class="card task" data-id="${t.id}">
+      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${ago(t.created_at)}${t.result?.best_score != null ? " · best " + t.result.best_score : ""}</div>
+      <div>${esc(t.prompt)}</div>
+      ${t.note ? `<div class="meta">note: ${esc(t.note)}</div>` : ""}
+    </div>`).join("") : `<div class="meta">Nothing here.</div>`;
+  document.querySelectorAll(".task").forEach(el => el.onclick = () => openTask(el.dataset.id));
+}
+$("#filter").onchange = loadTasks; $("#refresh").onclick = loadTasks;
+
+async function openTask(id) {
+  const t = await api("/tasks/" + id);
+  const r = t.result || {};
+  const pending = t.status === "awaiting_approval";
+  const opts = (r.options || []).map((o, i) => `
+    <div class="opt">
+      <div>${o.score != null ? `<span class="score">${o.score}</span> · ` : ""}${esc(o.text)}</div>
+      ${o.rationale ? `<div class="meta">why: ${esc(o.rationale)}</div>` : ""}
+      ${o.judge_notes ? `<div class="meta">judge: ${esc(o.judge_notes)}</div>` : ""}
+      ${pending ? `<div class="row"><button class="b ok" data-approve="${i}">Approve #${i+1}</button></div>` : ""}
+    </div>`).join("");
+  const trace = (t.trace || []).map(s => `
+    <details><summary>${esc(s.stage)} · loop ${s.loop} · ${esc(s.slot || "")}${s.role ? " (" + esc(s.role) + ")" : ""} · ${s.latency_ms ?? "?"}ms${s.cost_usd ? " · $" + s.cost_usd.toFixed(4) : ""}${s.note ? " · " + esc(s.note) : ""}</summary><pre>${esc(s.output || "")}</pre></details>`).join("");
+  $("#detail").innerHTML = `
+    <div class="card">
+      <div class="meta">${esc(t.type)} · ${esc(t.status.replace(/_/g," "))} · ${t.id}${r.loops ? " · " + r.loops + " loop(s)" : ""}${r.below_threshold ? " · below threshold" : ""}</div>
+      <h3 style="margin:6px 0">${esc(t.prompt)}</h3>
+      ${t.error ? `<div class="err">${esc(t.error)}</div>` : ""}
+      ${t.chosen ? `<div class="meta">approved:</div><div>${esc(t.chosen.text)}</div>` : ""}
+      ${opts}
+      ${r.judge_feedback ? `<details><summary>judge feedback</summary><pre>${esc(r.judge_feedback)}</pre></details>` : ""}
+      ${(r.decision_log || []).length ? `<details><summary>decision log</summary><pre>${esc(r.decision_log.join("\n"))}</pre></details>` : ""}
+      ${pending ? `<label for="rnote">Rethink with note</label><input id="rnote"><div class="row"><button class="b" id="rethink">Rethink</button><button class="b bad" id="reject">Reject</button></div>` : ""}
+      <details><summary>full trace (${(t.trace||[]).length} steps)</summary>${trace}</details>
+    </div>`;
+  $("#detail").scrollIntoView({ behavior: "smooth" });
+  document.querySelectorAll("[data-approve]").forEach(b => b.onclick = async () => { await api(`/tasks/${id}/approve`, { method: "POST", body: JSON.stringify({ index: +b.dataset.approve }) }); openTask(id); loadTasks(); });
+  if (pending) {
+    $("#rethink").onclick = async () => { const n = await api(`/tasks/${id}/rethink`, { method: "POST", body: JSON.stringify({ note: $("#rnote").value || null }) }); $("#detail").innerHTML = `<div class="card meta">Rethinking as task ${n.id}…</div>`; loadTasks(); };
+    $("#reject").onclick = async () => { await api(`/tasks/${id}/reject`, { method: "POST" }); openTask(id); loadTasks(); };
+  }
+}
+
+$("#go").onclick = async () => {
+  try {
+    const r = await api("/tasks", { method: "POST", body: JSON.stringify({ type: $("#ttype").value, prompt: $("#tprompt").value, note: $("#tnote").value || null }) });
+    $("#newMsg").textContent = "Thinking… task " + r.id; $("#tprompt").value = ""; $("#tnote").value = "";
+  } catch (e) { $("#newMsg").textContent = e.message; }
+};
+
+async function loadPersona() {
+  try { const p = await api("/persona"); $("#pjson").value = JSON.stringify(p.data, null, 2); $("#pver").textContent = "version " + p.version + " · saved " + ago(p.created_at); }
+  catch (e) { $("#pver").textContent = e.message; }
+}
+$("#psave").onclick = async () => {
+  try { const r = await api("/persona", { method: "PUT", body: JSON.stringify(JSON.parse($("#pjson").value)) }); $("#pmsg").textContent = "saved v" + r.version; loadPersona(); }
+  catch (e) { $("#pmsg").textContent = e.message; }
+};
+
+async function loadSystem() {
+  const s = await api("/status");
+  const g = s.gpu;
+  $("#sys").innerHTML = `<div><b>GPU:</b> ${esc(g.mode)}${g.holder ? " (held by " + esc(g.holder) + ")" : ""}${g.switching ? " · switching…" : ""}</div>
+    <div class="meta">waiting for think mode: ${g.calls_waiting_for_think_mode} · in flight: ${g.inflight_local_calls}</div>
+    <div style="margin-top:8px"><b>Cloud budget:</b> $${s.budget.spent_usd} / $${s.budget.monthly_usd} this month</div>
+    <pre>${esc(JSON.stringify(g.servers, null, 2))}</pre>`;
+  loadAccounts();
+}
+$("#mThink").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "think" }) }); loadSystem(); };
+$("#mRender").onclick = async () => { $("#sys").textContent = "switching…"; await api("/gpu/mode", { method: "POST", body: JSON.stringify({ mode: "render", holder: "manual", ttl_s: 7200 }) }); loadSystem(); };
+
+$("#estart").onclick = async () => {
+  try {
+    const body = { variants: $("#evars").value.split(",").map(x => x.trim()).filter(Boolean), auto_judge: $("#ejudge").checked ? "judge" : null };
+    if ($("#elimit").value) body.limit = +$("#elimit").value;
+    const r = await api("/evals", { method: "POST", body: JSON.stringify(body) });
+    $("#emsg").textContent = "started " + r.id; loadEvals();
+  } catch (e) { $("#emsg").textContent = e.message; }
+};
+
+async function loadEvals() {
+  const runs = await api("/evals");
+  $("#eruns").innerHTML = runs.length ? `<div class="card"><table><tr><th>Run</th><th>Status</th><th></th></tr>` + runs.map(r => `
+    <tr><td>${esc(r.name)}<div class="meta">${r.id} · ${ago(r.created_at)}</div></td>
+    <td>${esc(r.status)}${r.status === "running" ? ` · ${esc(r.progress.stage || "")} ${r.progress.done}/${r.progress.total}` : ""}${r.error ? `<div class="err">${esc(r.error)}</div>` : ""}</td>
+    <td><button class="b" data-rep="${r.id}">Report</button> <button class="b" data-rate="${r.id}">Rate</button></td></tr>`).join("") + `</table></div>` : "";
+  document.querySelectorAll("[data-rep]").forEach(b => b.onclick = () => showReport(b.dataset.rep));
+  document.querySelectorAll("[data-rate]").forEach(b => b.onclick = () => ratePair(b.dataset.rate));
+}
+
+async function showReport(id, voter = "") {
+  const r = await api(`/evals/${id}` + (voter ? "?voter=" + voter : ""));
+  const pct = x => x == null ? "–" : Math.round(x * 100) + "%";
+  $("#erate").innerHTML = "";
+  $("#ereport").innerHTML = `<div class="card">
+    <div class="row" style="margin:0 0 8px"><b>${esc(r.run.name)}</b><span class="meta">${r.votes} votes</span>
+      <select id="evoter" style="width:auto"><option value="">all voters</option><option value="human">you</option><option value="llm">LLM judge</option></select></div>
+    <div class="tablewrap"><table><tr><th>Variant</th><th>Win rate</th><th>W/L/T</th><th>$/case</th><th>s/case</th><th>Fail</th></tr>
+    ${r.variants.map(v => `<tr><td>${esc(v.variant)}</td><td class="score">${pct(v.win_rate)}</td><td>${v.wins}/${v.losses}/${v.ties}</td><td>${v.avg_cost_usd ?? "–"}</td><td>${v.avg_wall_s ?? "–"}</td><td>${v.failures}</td></tr>`).join("")}
+    </table></div>
+    <details><summary>head-to-head (row beats column)</summary><div class="tablewrap"><table>
+      <tr><th></th>${r.variants.map(v => `<th>${esc(v.variant)}</th>`).join("")}</tr>
+      ${r.variants.map(a => `<tr><td>${esc(a.variant)}</td>${r.variants.map(b => `<td>${a.variant === b.variant ? "" : pct(r.head_to_head[a.variant][b.variant].win_rate)}</td>`).join("")}</tr>`).join("")}
+    </table></div></details>
+    <details><summary>by task type</summary><pre>${esc(JSON.stringify(r.by_task_type, null, 2))}</pre></details>
+  </div>`;
+  $("#evoter").value = voter;
+  $("#evoter").onchange = () => showReport(id, $("#evoter").value);
+}
+
+async function ratePair(id) {
+  const p = await api(`/evals/${id}/pair`);
+  $("#ereport").innerHTML = "";
+  if (p.done) { $("#erate").innerHTML = `<div class="card meta">All pairs rated. <button class="b" id="seeRep">See report</button></div>`; $("#seeRep").onclick = () => showReport(id, "human"); return; }
+  $("#erate").innerHTML = `<div class="card">
+    <div class="meta">${esc(p.task_type)} · ${p.remaining} left · blind</div>
+    <h3 style="margin:6px 0">${esc(p.prompt)}</h3>
+    <div class="pair"><div class="side"><b>A</b>\n${esc(p.left)}</div><div class="side"><b>B</b>\n${esc(p.right)}</div></div>
+    <div class="row"><button class="b ok" data-v="left">A is better</button><button class="b" data-v="tie">Tie</button><button class="b ok" data-v="right">B is better</button></div>
+  </div>`;
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = async () => { await api("/evals/vote", { method: "POST", body: JSON.stringify({ token: p.token, choice: b.dataset.v }) }); ratePair(id); });
+}
+
+const when = ts => ts ? new Date(ts * 1000).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "unscheduled";
+const tokq = () => token ? "?token=" + encodeURIComponent(token) : "";
+
+async function loadPosts() {
+  const f = $("#pfilter").value;
+  const posts = await api("/posts" + (f === "active" ? "?active=true" : f ? "?status=" + f : ""));
+  $("#plist").innerHTML = posts.length ? posts.map(p => `
+    <div class="card task" data-post="${p.id}">
+      <div class="meta">${when(p.scheduled_at)} · ${esc(p.status.replace(/_/g, " "))} · ${esc((p.platforms || []).join(", ") || "no platform enabled")}</div>
+      <div>${esc(p.concept)}</div>${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}
+    </div>`).join("") : `<div class="meta">Nothing here. Send /plan in Telegram or use + Post.</div>`;
+  document.querySelectorAll("[data-post]").forEach(el => el.onclick = () => openPost(el.dataset.post));
+}
+$("#pfilter").onchange = loadPosts;
+$("#newPost").onclick = async () => { const concept = prompt("Post concept:"); if (concept) { await api("/posts", { method: "POST", body: JSON.stringify({ concept }) }); loadPosts(); } };
+
+async function openPost(id) {
+  const p = await api("/posts/" + id);
+  const job = p.video_job;
+  const shots = job ? job.shots.map((s, i) => `<div class="opt"><b>${i + 1}.</b> (${s.duration_s}s, ${esc(s.camera)}) ${esc(s.action)}${s.dialogue ? ` <i>"${esc(s.dialogue)}"</i>` : ""}</div>`).join("") : "";
+  const pub = Object.entries(p.published || {}).map(([k, v]) => `<div>${esc(k)}: ${v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.state)}</a>` : esc(v.state)}</div>`).join("");
+  $("#pdetail").innerHTML = `<div class="card">
+    <div class="meta">${p.id} · ${esc(p.status.replace(/_/g, " "))} · ${when(p.scheduled_at)}</div>
+    <h3 style="margin:6px 0">${esc(p.concept)}</h3>
+    ${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}
+    ${p.media_path ? `<video controls playsinline style="width:100%;max-height:70vh;border-radius:10px" src="/api/posts/${p.id}/media${tokq()}"></video>` : ""}
+    ${p.caption ? `<label>Caption</label><div style="white-space:pre-wrap">${esc(p.caption)}</div>` : ""}
+    ${job ? `<details ${p.status === "script_review" ? "open" : ""}><summary>shot list: ${esc(job.title || "")} · ${esc(JSON.stringify(job.continuity))}</summary>${shots}</details>` : ""}
+    ${pub}
+    <div class="row">
+      ${p.status === "script_review" ? `<button class="b ok" id="pAppr">Approve → render</button><input id="pNote" placeholder="change notes" style="flex:1;min-width:140px"><button class="b" id="pRedo">Redo</button>` : ""}
+      ${p.status === "caption_review" && p.caption_task_id ? `<button class="b ok" id="pCap">Pick caption</button>` : ""}
+      ${p.status === "scheduled" ? `<button class="b" id="pNow">Post now</button>` : ""}
+      ${!["published", "publishing", "dropped"].includes(p.status) ? `<input id="pWhen" type="datetime-local" style="width:auto"><button class="b" id="pRes">Reschedule</button><button class="b bad" id="pDrop">Drop</button>` : ""}
+    </div></div>`;
+  const on = (sel, fn) => { const el = $(sel); if (el) el.onclick = async () => { try { await fn(); } catch (e) { alert(e.message); } openPost(id); loadPosts(); }; };
+  on("#pAppr", () => api(`/posts/${id}/script/approve`, { method: "POST" }));
+  on("#pRedo", () => api(`/posts/${id}/script/redo`, { method: "POST", body: JSON.stringify({ note: $("#pNote").value || null }) }));
+  on("#pNow", () => api(`/posts/${id}/publish-now`, { method: "POST" }));
+  on("#pDrop", () => api(`/posts/${id}/drop`, { method: "POST" }));
+  on("#pRes", () => api(`/posts/${id}/reschedule`, { method: "POST", body: JSON.stringify({ scheduled_at: new Date($("#pWhen").value).getTime() / 1000 }) }));
+  const cap = $("#pCap"); if (cap) cap.onclick = () => { show("tasks"); openTask(p.caption_task_id); };
+  $("#pdetail").scrollIntoView({ behavior: "smooth" });
+}
+
+async function loadComments() {
+  const f = $("#cfilter").value;
+  const cs = await api("/comments" + (f ? "?status=" + f : ""));
+  const dot = r => ({ low: "🟢", medium: "🟡", high: "🔴" }[r] || "⚪");
+  $("#clist").innerHTML = cs.length ? cs.map(cm => `
+    <div class="card">
+      <div class="meta">${dot(cm.risk)} ${esc(cm.category || "")} · @${esc(cm.username || "?")} · ${esc(cm.platform)} · ${esc(cm.status)}</div>
+      <div>«${esc(cm.text)}»</div>
+      ${cm.status === "drafted" || cm.status === "failed" ? `<textarea data-draft="${cm.id}" style="min-height:60px;margin-top:8px">${esc(cm.draft || "")}</textarea>
+        <div class="row"><button class="b ok" data-send="${cm.id}">Send</button><button class="b" data-ign="${cm.id}">Ignore</button></div>` : cm.draft ? `<div class="meta">↪️ ${esc(cm.draft)}</div>` : ""}
+      ${cm.error ? `<div class="err">${esc(cm.error)}</div>` : ""}
+    </div>`).join("") : `<div class="meta">Nothing here.</div>`;
+  document.querySelectorAll("[data-send]").forEach(b => b.onclick = async () => { const t = document.querySelector(`[data-draft="${b.dataset.send}"]`).value; await api(`/comments/${b.dataset.send}/send`, { method: "POST", body: JSON.stringify({ text: t }) }); loadComments(); });
+  document.querySelectorAll("[data-ign]").forEach(b => b.onclick = async () => { await api(`/comments/${b.dataset.ign}/ignore`, { method: "POST" }); loadComments(); });
+}
+$("#cfilter").onchange = loadComments;
+$("#cpoll").onclick = async () => { await api("/comments/poll", { method: "POST" }); loadComments(); };
+
+async function loadAnalytics() {
+  const a = await api("/analytics?checkpoint=" + $("#acp").value);
+  const cal = a.calibration;
+  $("#acal").innerHTML = `<b>Does the judge predict real results?</b><div style="margin-top:6px">${esc(cal.verdict)}</div>
+    <div class="meta">posts: ${cal.n} · rank correlation with views: ${cal.spearman_judge_vs_views ?? "–"} · with engagement: ${cal.spearman_judge_vs_engagement_rate ?? "–"}</div>`;
+  $("#atable").innerHTML = a.posts.length ? `<div class="card tablewrap"><table><tr><th>Post</th><th>Views</th><th>ER</th><th>Judge</th></tr>` +
+    a.posts.map(r => `<tr><td>${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.concept.slice(0, 70))}</a>` : esc(r.concept.slice(0, 70))}<div class="meta">${esc(r.platform)}</div></td><td>${r.views ?? "–"}</td><td>${r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + "%" : "–"}</td><td>${r.judge_score ?? "–"}</td></tr>`).join("") + `</table></div>` : `<div class="meta">No metrics yet. They arrive 1h / 24h / 7d after each post.</div>`;
+}
+$("#acp").onchange = loadAnalytics;
+
+async function loadLedger() {
+  const [series, all] = await Promise.all([api("/series"), api("/continuity")]);
+  const names = Object.fromEntries(series.map(s => [s.id, s.name]));
+  $("#lseries").innerHTML = `<option value="">whole persona</option>` + series.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  const row = e => `<div class="opt"><span class="meta">[${esc(e.kind)}${e.series_id ? " · " + esc(names[e.series_id] || e.series_id) : ""}]</span> <b>${esc(e.key)}</b>: ${esc(e.value)}
+    <div class="row" style="margin-top:4px">${e.status === "proposed" ? `<button class="b ok" data-conf="${e.id}">Confirm</button>` : ""}<button class="b" data-ret="${e.id}">Retire</button></div></div>`;
+  const prop = all.filter(e => e.status === "proposed"), act = all.filter(e => e.status === "active");
+  $("#lproposed").innerHTML = prop.length ? `<div class="card"><b>Proposed from approved content</b>${prop.map(row).join("")}</div>` : "";
+  $("#llist").innerHTML = `<div class="card"><b>Active facts</b>${act.length ? act.map(row).join("") : `<div class="meta">None yet.</div>`}</div>`;
+  document.querySelectorAll("[data-conf]").forEach(b => b.onclick = async () => { await api(`/continuity/${b.dataset.conf}/confirm`, { method: "POST" }); loadLedger(); });
+  document.querySelectorAll("[data-ret]").forEach(b => b.onclick = async () => { await api(`/continuity/${b.dataset.ret}`, { method: "PATCH", body: JSON.stringify({ status: "retired" }) }); loadLedger(); });
+}
+$("#ladd").onclick = async () => {
+  try { await api("/continuity", { method: "POST", body: JSON.stringify({ kind: $("#lkind").value, key: $("#lkey").value, value: $("#lval").value, series_id: $("#lseries").value || null }) }); $("#lkey").value = $("#lval").value = ""; loadLedger(); }
+  catch (e) { $("#lmsg").textContent = e.message; }
+};
+$("#snew").onclick = async () => { const name = prompt("Series name:"); if (name) { await api("/series", { method: "POST", body: JSON.stringify({ name, description: prompt("One-line description:") || "" }) }); loadLedger(); } };
+
+async function loadAccounts() {
+  const a = await api("/accounts");
+  const ig = a.instagram, tt = a.tiktok;
+  $("#accts").innerHTML = `<b>Accounts</b>
+    <div>Instagram: ${ig.enabled ? (ig.connected ? "✅ connected" : "⚠️ set IG_USER_ID / IG_ACCESS_TOKEN in .env") : "off"} <span class="meta">(${esc(ig.login)} login)</span></div>
+    <div>TikTok: ${tt.enabled ? (tt.connected ? `✅ connected · token renews automatically (${tt.refresh_expires_in_days} days left)` : `<button class="b" id="ttc">Connect TikTok</button>`) : "off"} <span class="meta">(${esc(tt.mode)} mode)</span></div>
+    ${tt.enabled && !tt.connected ? `<div class="row"><input id="ttcode" placeholder="…or paste the code= value from the redirect URL"><button class="b" id="ttsend">Use code</button></div>` : ""}
+    <div class="meta">autopilot: ${a.autopilot.running ? "running" : "stopped"}${a.autopilot.last_error ? " · " + esc(a.autopilot.last_error) : ""}</div>`;
+  const c = $("#ttc"); if (c) c.onclick = async () => { const r = await api("/accounts/tiktok/connect"); window.open(r.url, "_blank"); };
+  const s = $("#ttsend"); if (s) s.onclick = async () => { try { await api("/accounts/tiktok/code", { method: "POST", body: JSON.stringify({ code: $("#ttcode").value }) }); loadAccounts(); } catch (e) { alert(e.message); } };
+}
+
+async function chip() {
+  try { const s = await api("/status"); $("#chip").textContent = `${s.gpu.mode} · ${s.pending} pending · $${s.budget.spent_usd}`; } catch (e) { $("#chip").textContent = "offline"; }
+}
+
+async function boot() {
+  try {
+    const types = await api("/task-types");
+    $("#ttype").innerHTML = Object.entries(types).map(([k, v]) => `<option value="${k}">${k} — ${esc(v.description)} (${v.sensitivity})</option>`).join("");
+    loadTasks(); chip();
+  } catch (e) {}
+}
+boot(); setInterval(chip, 15000);
+</script>
+</body>
+</html>

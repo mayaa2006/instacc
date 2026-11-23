@@ -48,6 +48,25 @@ On start, the agent launches the three `llama-server` processes itself. Their lo
 The first time you bind to `0.0.0.0`, Windows Firewall asks about `python.exe`. Allow it on
 **Private** networks only.
 
+### The app (phone + PC)
+Open `http://<pc-ip>:8000` and type the password (`INSTACC_API_TOKEN`). It's one page that adapts:
+bottom tabs on a phone, a sidebar on a PC.
+- **Inbox:** everything that needs you, one card each:
+  - pick a caption for a finished video (plays inline)
+  - approve a shot list
+  - tick the week's ideas
+  - pick hooks
+  - send or skip comment replies
+  - confirm story facts
+  - retry anything that failed
+- **Create:** "Plan my week", or ask for hooks, captions or video ideas. You can also add a post directly.
+- **Calendar:** posts by day; tap one to watch, move, post now or drop.
+- **Stats:** views, the best posts, whether the AI judge is right, and cloud spend.
+- **More:** your character, story facts, accounts, GPU mode, and a link to the **classic** view
+  (`/classic`) with evals, traces and raw settings.
+
+On your phone use "Add to Home Screen" (Safari: Share menu; Chrome: ⋮ menu) to get an app icon.
+
 ### Phone access
 - **Telegram (fully portable, recommended):** the bot polls outward, so nothing is exposed.
   - `/hooks`, `/caption`, `/idea` or `/quick` followed by your request; or just send text and pick a type.

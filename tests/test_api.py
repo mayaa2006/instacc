@@ -82,3 +82,32 @@ def test_posts_and_render_queue_api(settings, transport, tmp_path):
         acc = client.get("/api/accounts").json()
         assert acc["instagram"]["enabled"] is False
         assert client.get("/api/accounts/tiktok/connect").status_code == 409
+
+
+def test_simple_ui_endpoints(settings, transport):
+    settings.agent.llama_server.manage_processes = False
+    settings.agent.autopilot.enabled = False
+    with TestClient(create_app(settings, transport=transport, start_bot=False)) as client:
+        for path in ("/", "/classic", "/icon.svg", "/manifest.webmanifest"):
+            assert client.get(path).status_code == 200, path
+        tid = client.post("/api/tasks", json={"type": "plan", "prompt": "week"}).json()["id"]
+        deadline = time.time() + 5
+        while client.get("/api/home").json()["thinking"] and time.time() < deadline:
+            time.sleep(0.05)
+        kinds = [i["kind"] for i in client.get("/api/inbox").json()]
+        assert "plan" in kinds
+        client.post(f"/api/tasks/{tid}/approve-many", json={"indices": [0, 1]})
+        deadline = time.time() + 5
+        while len([i for i in client.get("/api/inbox").json() if i["kind"] == "script"]) < 2 and time.time() < deadline:
+            time.sleep(0.05)
+        inbox = client.get("/api/inbox").json()
+        assert [i["kind"] for i in inbox].count("script") == 2 and "fact" not in [i["kind"] for i in inbox]
+        home = client.get("/api/home").json()
+        assert home["inbox"] == len(inbox) and home["upcoming"] == 2 and "verdict" in home
+        pid = inbox[0]["id"]
+        client.post(f"/api/posts/{pid}/script/approve")
+        client.post(f"/api/posts/{pid}/claim")
+        client.post(f"/api/posts/{pid}/render-failed", json={"error": "OOM"})
+        assert any(i["kind"] == "failed" for i in client.get("/api/inbox").json())
+        assert client.post(f"/api/posts/{pid}/retry").json()["status"] == "render_queued"
+        assert client.post(f"/api/posts/{pid}/retry").status_code == 409
