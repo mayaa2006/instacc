@@ -42,6 +42,7 @@ class Container:
     comments: CommentService
     analytics: AnalyticsService
     autopilot: Autopilot
+    pairing: object = None   # set by the web app (it knows the port)
 
     @classmethod
     def build(cls, settings: Settings, transport: httpx.AsyncBaseTransport | None = None,

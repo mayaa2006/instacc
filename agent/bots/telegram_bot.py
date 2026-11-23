@@ -125,6 +125,7 @@ class TelegramBot:
         a.add_handler(CommandHandler("render", self.cmd_render, filters=uf))
         a.add_handler(CommandHandler("rate", self.cmd_rate, filters=uf))
         a.add_handler(CommandHandler("posts", self.cmd_posts, filters=uf))
+        a.add_handler(CommandHandler("app", self.cmd_app, filters=uf))
         a.add_handler(CommandHandler("comments", self.cmd_comments, filters=uf))
         a.add_handler(CommandHandler([AUTO, *types], self.cmd_task, filters=uf))
         a.add_handler(CallbackQueryHandler(self.on_button))
@@ -230,6 +231,24 @@ class TelegramBot:
         return text, kb
 
     # ------------------------------------------------------------- commands
+    async def cmd_app(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        """One-tap phone setup: a link that opens the app already signed in (single use, 10 min)."""
+        pairing = self.c.pairing
+        if pairing is None:
+            await update.message.reply_text("The web app isn't running.")
+            return
+        code, _ = pairing.new_code()
+        links = pairing.links(code)
+        if not links:
+            await update.message.reply_text("Your PC has no network address right now.")
+            return
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"📲 Open app ({l['label']})", url=l["url"])] for l in links])
+        await update.message.reply_html(
+            "Tap to open instacc on this phone, already signed in. The link works once, for 10 minutes.\n\n"
+            "Then in Chrome: <b>⋮ → Add to Home screen</b> (or <b>Install app</b>) to get an icon.\n"
+            "<i>Home Wi-Fi links only work when your phone is on the same Wi-Fi as the PC.</i>",
+            reply_markup=kb)
+
     async def cmd_posts(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         posts = self.c.posts.list(active_only=True)
         if not posts:
@@ -254,6 +273,7 @@ class TelegramBot:
             "\n/auto &lt;request&gt; — let the router pick"
             "\n/plan [focus] — a week of post ideas; tick the ones to schedule"
             "\n/posts — calendar · /comments — replies waiting"
+            "\n/app — open the phone app (one tap, signed in)"
             "\n\n/pending — waiting for approval\n/status — GPU, budget\n/render [hours] · /think — GPU mode"
             "\n/rate [eval id] — blind-rate eval pairs"
             "\n\nOr just send text and pick a task type."

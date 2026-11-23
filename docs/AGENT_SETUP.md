@@ -49,8 +49,22 @@ The first time you bind to `0.0.0.0`, Windows Firewall asks about `python.exe`. 
 **Private** networks only.
 
 ### The app (phone + PC)
-Open `http://<pc-ip>:8000` and type the password (`INSTACC_API_TOKEN`). It's one page that adapts:
-bottom tabs on a phone, a sidebar on a PC.
+**Getting it on your phone takes one scan:**
+1. Run `start-agent.bat`. The app opens on the PC by itself, already signed in, and the black window
+   shows a **QR code**.
+2. Point your phone's **camera** at the QR code and tap the link. The app opens signed in, with no
+   password to type.
+   - The phone must be on the same Wi-Fi as the PC.
+   - The first time, Windows asks about Python and the firewall: allow it on **Private** networks.
+3. Tap **Install** on the banner, or Chrome **⋮ → Add to Home screen**. Done: instacc is an icon on your
+   home screen.
+
+Need a new code later? On the PC go to **More → Connect a phone**, or send **/app** to the Telegram bot and
+tap the button. Codes work once and expire after 10 minutes. The app password is created automatically in
+`.env` (`INSTACC_API_TOKEN`), so you never have to set or type it. It's there as a fallback ("Enter the
+password instead").
+
+The app is one page that adapts: bottom tabs on a phone, a sidebar on a PC.
 - **Inbox:** everything that needs you, one card each:
   - pick a caption for a finished video (plays inline)
   - approve a shot list
@@ -66,9 +80,9 @@ bottom tabs on a phone, a sidebar on a PC.
   (`/classic`) with evals, traces and raw settings.
 
 ### Android
-**Quick (home Wi-Fi):** start with `start-agent.bat --host 0.0.0.0`, then open `http://<pc-ip>:8000` in Chrome
-on the phone and use **⋮ → Add to Home screen**. You get an icon, but over plain `http` it opens inside a Chrome tab.
-Find the PC's IP with `ipconfig` (IPv4 Address).
+**Quick (home Wi-Fi):** scan the QR code as above, then **⋮ → Add to Home screen**. You get an icon, but over
+plain `http` it opens inside a Chrome tab. The agent now listens on the network by default; use
+`start-agent.bat --host 127.0.0.1` for PC-only.
 
 **Proper app (own window, works away from home):** Chrome only *installs* web apps over HTTPS. The easiest
 HTTPS is Tailscale. This is the one system install; skip it if you want to stay strictly portable.

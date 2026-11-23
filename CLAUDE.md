@@ -35,9 +35,10 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   stop during renders.
 
 ## Dev commands
-- Tests: `python\python.exe -m pytest -q` (55 tests; needs `pip install pytest pytest-asyncio`).
-- Run: `start-agent.bat` (add `--host 0.0.0.0` for the phone). The app is at `/`, the classic
-  dashboard at `/classic`.
+- Tests: `python\python.exe -m pytest -q` (62 tests; needs `pip install pytest pytest-asyncio`).
+- Run: `start-agent.bat`. It listens on the network by default, prints a phone QR code and opens the PC
+  browser signed in. The app is at `/`, the classic dashboard at `/classic`. Phones pair by QR
+  (`agent/pairing.py`) or Telegram `/app`.
 - Config: `config/agent.yaml` (models, servers, publishing, autonomy) and `config/tasks.yaml`
   (deliberation per task type).
 - **Models are free and local by default** (`slot_profile: local`).

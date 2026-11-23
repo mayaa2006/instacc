@@ -199,6 +199,23 @@ def load_dotenv(path: Path) -> None:
             os.environ[key] = val
 
 
+def ensure_api_token(env_path: Path) -> str:
+    """No password configured yet: make a strong one and save it to .env (phones pair by QR, so
+    nobody has to type it)."""
+    import secrets
+
+    token = secrets.token_urlsafe(24)
+    try:
+        existing = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        lines = [ln for ln in existing.splitlines() if not ln.strip().startswith("INSTACC_API_TOKEN=")]
+        lines.append(f"INSTACC_API_TOKEN={token}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass  # read-only folder: the token still works for this run
+    os.environ["INSTACC_API_TOKEN"] = token
+    return token
+
+
 def apply_slot_profile(agent: "AgentCfg", name: str) -> None:
     """Overlay a named profile (e.g. "local" or "cloud") onto the slots."""
     if name not in agent.slot_profiles:
@@ -213,6 +230,7 @@ def load_settings(root: Path | None = None) -> Settings:
     cfg_dir = root / "config"
     agent = AgentCfg.model_validate(yaml.safe_load((cfg_dir / "agent.yaml").read_text(encoding="utf-8")))
     tasks = TasksCfg.model_validate(yaml.safe_load((cfg_dir / "tasks.yaml").read_text(encoding="utf-8")))
+    api_token = os.environ.get("INSTACC_API_TOKEN") or ensure_api_token(root / ".env")
     allowed = {
         int(x) for x in os.environ.get("TELEGRAM_ALLOWED_USERS", "").replace(" ", "").split(",") if x
     }
@@ -225,7 +243,7 @@ def load_settings(root: Path | None = None) -> Settings:
             raise ValueError(f"task '{name}' uses unknown slot(s) {missing}; "
                              f"check slot_profile/slots in config/agent.yaml")
     secrets = Secrets(
-        api_token=os.environ.get("INSTACC_API_TOKEN") or None,
+        api_token=api_token,
         telegram_token=os.environ.get("TELEGRAM_BOT_TOKEN") or None,
         telegram_allowed_users=allowed,
     )

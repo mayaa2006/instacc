@@ -12,7 +12,7 @@ from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel
 
 from agent.config import Settings
@@ -20,6 +20,7 @@ from agent.container import Container
 from agent.content.posts import PostError
 from agent.evals.harness import EvalError
 from agent.publish.base import PublishError
+from agent.pairing import Pairing, PairingError, qr_svg, qr_terminal
 from agent.tasks import AUTO, TaskError
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,10 @@ class NewEval(BaseModel):
     types: list[str] | None = None
     auto_judge: str | None = "judge"
     concurrency: int = 1
+
+
+class PairClaim(BaseModel):
+    code: str
 
 
 class Vote(BaseModel):
@@ -111,6 +116,35 @@ class Code(BaseModel):
     code: str
 
 
+def announce_ready(pairing: Pairing, open_browser: bool, phone_reachable: bool = True) -> None:
+    """Console banner with a phone QR code; optionally open the signed-in app on this PC."""
+    code, _ = pairing.new_code()
+    links = pairing.links(code) if phone_reachable else []
+    print("\n" + "=" * 64)
+    print("  instacc is running")
+    print(f"  On this PC:  {pairing.pc_link()}")
+    if links:
+        print("  On your phone: point the camera at this QR code (valid 10 minutes)")
+        try:
+            print(qr_terminal(links[0]["url"]))
+        except Exception:
+            pass
+        for link in links:
+            print(f"    {link['label']}: {link['url']}")
+    elif not phone_reachable:
+        print("  Phone access is off (started with --host 127.0.0.1). Start without --host to allow it.")
+    else:
+        print("  No network address found: connect this PC to Wi-Fi/Ethernet to use the phone app.")
+    print("  New phone link any time: More > Connect a phone, or /app in Telegram")
+    print("=" * 64 + "\n", flush=True)
+    if open_browser:
+        import threading
+        import webbrowser
+
+        pc_code, _ = pairing.new_code()
+        threading.Timer(1.0, lambda: webbrowser.open(pairing.pc_link(pc_code))).start()
+
+
 class GpuMode(BaseModel):
     mode: Literal["think", "render"]
     holder: str | None = None
@@ -118,12 +152,18 @@ class GpuMode(BaseModel):
 
 
 def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None,
-               start_bot: bool = True) -> FastAPI:
+               start_bot: bool = True, port: int = 8000, scheme: str = "http",
+               announce: bool = False, open_browser: bool = False, phone_reachable: bool = True) -> FastAPI:
+    pairing = Pairing(settings.secrets.api_token, port=port, scheme=scheme)
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         c = Container.build(settings, transport=transport)
+        c.pairing = pairing
         app.state.c = c
         await c.start()
+        if announce:
+            announce_ready(pairing, open_browser, phone_reachable)
         bot = None
         if start_bot and settings.secrets.telegram_token:
             from agent.bots.telegram_bot import TelegramBot
@@ -267,6 +307,18 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         order = {"failed": 0, "caption": 1, "script": 2, "plan": 3, "pick": 4, "comment": 5, "fact": 6}
         items.sort(key=lambda i: (order[i["kind"]], -(i["at"] or 0)))
         return items
+
+    # ---- phone pairing ---------------------------------------------------
+    @api.post("/pair/new")
+    def pair_new(request: Request):
+        code, expires = pairing.new_code()
+        return {"code": code, "expires_at": expires, "links": pairing.links(code), "pc": pairing.pc_link()}
+
+    @api.get("/pair/qr.svg")
+    def pair_qr(data: str):
+        if not data.startswith(("http://", "https://")) or len(data) > 300:
+            raise HTTPException(422, "bad data")
+        return Response(qr_svg(data), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
 
     @api.get("/inbox")
     def inbox(request: Request):
@@ -576,6 +628,14 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         return await c(request).gpu.set_mode(body.mode, holder=body.holder, ttl_s=body.ttl_s)
 
     app.include_router(api)
+
+    @app.post("/pair/claim")
+    def pair_claim(body: PairClaim):
+        """Unauthenticated on purpose: a one-time code from the PC's QR swaps for the app password."""
+        try:
+            return {"token": pairing.claim(body.code.strip())}
+        except PairingError as e:
+            raise HTTPException(403, str(e))
 
     @app.get("/auth/tiktok/callback")
     async def tiktok_callback(request: Request, code: str = "", state: str = "", error: str = ""):

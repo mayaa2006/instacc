@@ -101,6 +101,7 @@ video { width:100%; max-height:45vh; border-radius:12px; background:#000; displa
 .empty .e { font-size:44px; }
 .stat { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
 .stat:last-child { border-bottom:0; }
+.stat .chips-inline { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:sp 1s linear infinite; vertical-align:-2px; }
 @keyframes sp { to { transform:rotate(360deg); } }
 .hidden { display:none !important; }
@@ -115,17 +116,35 @@ dialog::backdrop { background:rgba(0,0,0,.45); }
 #toast { position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:12px 18px; border-radius:12px; font-weight:600; z-index:50; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; }
 #toast.show { opacity:1; }
 @media (min-width:900px) { #toast { bottom:28px; left:calc(50% + 116px); } }
-.login { max-width:380px; margin:12vh auto; padding:16px; text-align:center; }
+.login { max-width:400px; margin:10vh auto; padding:16px; text-align:center; }
 .login img { width:64px; }
+.steps { text-align:left; margin:18px 0; padding:0; list-style:none; counter-reset:s; }
+.steps li { counter-increment:s; display:flex; gap:12px; align-items:flex-start; margin:12px 0; }
+.steps li::before { content:counter(s); flex:0 0 28px; height:28px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-weight:700; display:flex; align-items:center; justify-content:center; }
+.qr { background:#fff; padding:10px; border-radius:14px; width:min(260px, 70vw); margin:8px auto; display:block; }
+.banner { display:flex; gap:12px; align-items:center; background:var(--accent-soft); border:1px solid var(--accent); }
+.banner .x { margin-left:auto; }
+details.alt summary { cursor:pointer; color:var(--muted); font-size:14px; margin-top:18px; }
+.only-phone { display:none; }
+@media (max-width: 899px) { .only-phone { display:block; } .only-pc { display:none; } }
 </style>
 </head>
 <body>
 <div id="login" class="login hidden">
   <img src="/icon.svg" alt="">
-  <h1>instacc</h1>
-  <p class="sub">Enter the password from your <code>.env</code> (INSTACC_API_TOKEN).</p>
-  <input id="tok" type="password" autocomplete="current-password" placeholder="Password">
-  <div class="row"><button class="btn primary big" id="tokGo">Open</button></div>
+  <h1>Connect this phone</h1>
+  <p class="sub" id="loginMsg">No typing needed.</p>
+  <ol class="steps">
+    <li><span>On your PC, open instacc (it opens by itself when you run <b>start-agent.bat</b>).</span></li>
+    <li><span>Go to <b>More → Connect a phone</b>. The QR code is also shown in the black start window.</span></li>
+    <li><span>Point this phone's <b>camera</b> at the QR code and tap the link.</span></li>
+  </ol>
+  <p class="muted">Using Telegram? Send <b>/app</b> to your bot and tap the button.</p>
+  <details class="alt"><summary>Enter the password instead</summary>
+    <p class="muted">It's <code>INSTACC_API_TOKEN</code> in the <code>.env</code> file on your PC.</p>
+    <input id="tok" type="password" autocomplete="current-password" placeholder="Password">
+    <div class="row"><button class="btn primary big" id="tokGo">Open</button></div>
+  </details>
 </div>
 
 <div class="app hidden" id="app">
@@ -319,11 +338,12 @@ async function renderInbox() {
   const next = home.next_post;
   const thinking = home.thinking.length ? `<div class="card"><span class="spin"></span> &nbsp;Thinking about ${home.thinking.length === 1 ? `“${esc(home.thinking[0].prompt.slice(0, 60))}”` : home.thinking.length + " things"}…</div>` : "";
   $("#main").innerHTML = `
+    ${installBanner()}
     <h1>${n ? `${n} ${n === 1 ? "thing needs" : "things need"} you` : "You're all caught up"}</h1>
     <p class="sub">${next ? `Next post: <b>${esc(when(next.scheduled_at))}</b> · ${home.upcoming} in the pipeline` : home.upcoming ? `${home.upcoming} posts in the pipeline` : "Nothing planned yet."}</p>
     ${thinking}
     ${n ? `<div class="grid">${items.map(card).join("")}</div>` : `<div class="empty"><div class="e">🌿</div><p>Nothing waiting for you.</p><button class="btn primary" onclick="go('create')">Plan something</button></div>`}`;
-  wireOptions($("#main")); wireActions($("#main"));
+  wireOptions($("#main")); wireActions($("#main")); wireBanner();
 }
 
 /* ---------------- create ---------------- */
@@ -417,10 +437,15 @@ async function renderMore() {
   const ig = acc.instagram, tt = acc.tiktok;
   $("#main").innerHTML = `<h1>More</h1>
     <div class="grid">
+    ${isPhone() && !isStandalone() ? `<div class="card"><div class="kicker"><b>📲 Install on this phone</b></div>
+      ${installEvt ? `<button class="btn primary big" id="mInstall">Install instacc</button>` : installSteps()}</div>` : ""}
+    <div class="card only-pc"><div class="kicker"><b>📱 Connect a phone</b></div>
+      <div id="pairBox"><p class="muted" style="margin-top:0">Shows a QR code. Scan it with the phone's camera and the app opens there, already signed in.</p>
+      <button class="btn primary wide" id="pairGo">Show QR code</button></div></div>
     <div class="card"><div class="kicker"><b>Accounts</b></div>
       <div class="stat"><span>Instagram</span><span>${ig.enabled ? (ig.connected ? `<span class="pill ok">connected</span>` : `<span class="pill bad">add token in .env</span>`) : `<span class="pill">off</span>`}</span></div>
       <div class="stat"><span>TikTok</span><span>${tt.enabled ? (tt.connected ? `<span class="pill ok">connected</span>` : `<button class="btn" id="ttc">Connect</button>`) : `<span class="pill">off</span>`}</span></div>
-      <div class="stat"><span>Graphics card</span><span><button class="chip ${home.gpu === "think" ? "on" : ""}" id="gThink">🧠 Thinking</button> <button class="chip ${home.gpu === "render" ? "on" : ""}" id="gRender">🎬 Rendering</button></span></div>
+      <div class="stat"><span>Graphics card</span><span class="chips-inline"><button class="chip ${home.gpu === "think" ? "on" : ""}" id="gThink">🧠 Thinking</button><button class="chip ${home.gpu === "render" ? "on" : ""}" id="gRender">🎬 Rendering</button></span></div>
     </div>
     <div class="card"><div class="kicker"><b>Your character</b></div>
       <label class="l" for="pName">Name</label><input id="pName" type="text" value="${esc(p.name)}">
@@ -453,11 +478,84 @@ async function renderMore() {
     content_pillars: split("#pPillars"), audience: $("#pAud").value.trim(), do: split("#pDo"), dont: split("#pDont") }) }), "Character saved ✓");
   $("#fAdd").onclick = () => { if (!$("#fKey").value.trim() || !$("#fVal").value.trim()) return toast("Fill in both fields"); act(() => post("/continuity", { kind: $("#fKind").value, key: $("#fKey").value, value: $("#fVal").value }), "Fact added ✓"); };
   document.querySelectorAll("[data-forget]").forEach(b => b.onclick = () => act(() => api(`/continuity/${b.dataset.forget}`, { method: "PATCH", body: JSON.stringify({ status: "retired" }) }), "Forgotten"));
+  const mi = $("#mInstall"); if (mi) mi.onclick = doInstall;
+  $("#pairGo").onclick = showPairing;
   $("#logout").onclick = () => { try { localStorage.removeItem("instacc_token"); } catch (e) {} token = ""; showLogin(); };
 }
 
+/* ---------------- phone install ---------------- */
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (view === "inbox" || view === "more") refresh(); });
+window.addEventListener("appinstalled", () => { installEvt = null; toast("Installed ✓ Find instacc on your home screen"); });
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isPhone = () => matchMedia("(max-width: 899px)").matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+let bannerOff = false; try { bannerOff = localStorage.getItem("instacc_install_banner") === "off"; } catch (e) {}
+
+function installSteps() {
+  if (installEvt) return "";
+  if (isIOS()) return `<ol class="steps"><li><span>Tap the <b>Share</b> button (square with arrow) in Safari.</span></li><li><span>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</span></li></ol>`;
+  return `<ol class="steps"><li><span>Tap <b>⋮</b> (top-right in Chrome).</span></li><li><span>Tap <b>Install app</b> or <b>Add to Home screen</b>.</span></li><li><span>Tap <b>Install</b> / <b>Add</b>. The instacc icon appears on your home screen.</span></li></ol>`;
+}
+async function doInstall() {
+  if (!installEvt) return;
+  installEvt.prompt();
+  const r = await installEvt.userChoice.catch(() => null);
+  installEvt = null;
+  if (r && r.outcome === "accepted") toast("Installing…");
+  refresh();
+}
+function installBanner() {
+  if (!isPhone() || isStandalone() || bannerOff) return "";
+  return `<div class="card banner"><span style="font-size:26px">📲</span>
+    <div><b>Put instacc on your home screen</b><div class="muted">${installEvt ? "One tap." : "Takes 10 seconds."}</div></div>
+    ${installEvt ? `<button class="btn primary" id="bInstall">Install</button>` : `<button class="btn" id="bHow">How</button>`}
+    <button class="btn ghost x" id="bX" aria-label="Dismiss">✕</button></div>`;
+}
+function wireBanner() {
+  const i = $("#bInstall"); if (i) i.onclick = doInstall;
+  const h = $("#bHow"); if (h) h.onclick = () => go("more");
+  const x = $("#bX"); if (x) x.onclick = () => { bannerOff = true; try { localStorage.setItem("instacc_install_banner", "off"); } catch (e) {} refresh(); };
+}
+
+async function claimPairing() {
+  const m = (location.hash || "").match(/^#pair=([\w-]+)/);
+  if (!m) return false;
+  try { history.replaceState(null, "", "#inbox"); } catch (e) {}
+  try {
+    const r = await fetch("/pair/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: m[1] }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || "Pairing failed");
+    token = body.token || "";
+    try { localStorage.setItem("instacc_token", token); } catch (e) {}
+    setTimeout(() => toast(isStandalone() ? "Connected ✓" : "Connected ✓ Now add it to your home screen"), 300);
+    return true;
+  } catch (e) {
+    $("#loginMsg").textContent = e.message;
+    showLogin();
+    return "failed";
+  }
+}
+
+async function showPairing() {
+  const box = $("#pairBox");
+  try {
+    const p = await post("/pair/new");
+    if (!p.links.length) { box.innerHTML = `<p>This PC has no network address. Connect it to Wi-Fi or Ethernet, then try again.</p>`; return; }
+    const first = p.links[0];
+    const mins = Math.round((p.expires_at * 1000 - Date.now()) / 60000);
+    box.innerHTML = `<img class="qr" alt="QR code to open instacc on your phone" src="/api/pair/qr.svg?data=${encodeURIComponent(first.url)}${token ? "&token=" + encodeURIComponent(token) : ""}">
+      <p class="muted" style="text-align:center">Point the phone camera here, tap the link. Works once, for ${mins} minutes.<br>
+      The phone must be on the <b>same Wi-Fi</b> as this PC${p.links.length > 1 ? " (or use the Tailscale link)" : ""}.</p>
+      ${p.links.map(l => `<div class="stat"><span class="muted">${esc(l.label)}</span><code style="font-size:12px;word-break:break-all">${esc(l.url.split("#")[0])}</code></div>`).join("")}
+      <details class="alt"><summary>Phone can't open it?</summary><p class="muted">Allow <b>Python</b> through Windows Firewall on <b>Private</b> networks
+      (Windows asks the first time you start the agent), and check the phone is on the same Wi-Fi, not mobile data.</p></details>
+      <div class="row"><button class="btn wide" id="pairAgain">New code</button></div>`;
+    $("#pairAgain").onclick = showPairing;
+  } catch (e) { toast(e.message); }
+}
+
 /* ---------------- boot ---------------- */
-$("#app").classList.remove("hidden");
 const VIEWS = ["inbox", "create", "calendar", "stats", "more"];
 window.addEventListener("popstate", () => {
   if ($("#sheet").open) { $("#sheet").close(); return; }
@@ -468,8 +566,13 @@ window.addEventListener("hashchange", () => { const v = location.hash.slice(1); 
 // keep focused inputs visible above the Android keyboard
 document.addEventListener("focusin", e => { if (e.target.matches("textarea, input")) setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300); });
 if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
-const start = (location.hash || "").slice(1);
-go(VIEWS.includes(start) ? start : "inbox");
+(async () => {
+  const paired = await claimPairing();
+  if (paired === "failed") return;
+  $("#app").classList.remove("hidden");
+  const start = (location.hash || "").slice(1);
+  go(VIEWS.includes(start) ? start : "inbox");
+})();
 setInterval(() => { if (!document.hidden && !$("#sheet").open && !document.activeElement.matches("textarea, input")) refresh(); }, 20000);
 </script>
 </body>

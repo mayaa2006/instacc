@@ -128,6 +128,7 @@ def settings(root):
     from agent.config import apply_slot_profile
     s = load_settings(root)
     s.agent.data_dir = str(root / "data")
+    s.secrets.api_token = None   # tests opt in to auth explicitly
     apply_slot_profile(s.agent, "cloud")
     return s
 
@@ -137,6 +138,7 @@ def local_settings(root):
     """Settings exactly as shipped (slot_profile: local)."""
     s = load_settings(root)
     s.agent.data_dir = str(root / "data")
+    s.secrets.api_token = None
     s.agent.llama_server.manage_processes = False
     return s
 

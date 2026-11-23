@@ -8,8 +8,9 @@ import sys
 
 def main() -> None:
     ap = argparse.ArgumentParser(prog="instacc")
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="Bind address. Use 0.0.0.0 or your Tailscale IP to reach it from your phone.")
+    ap.add_argument("--host", default="0.0.0.0",
+                    help="Bind address. Default 0.0.0.0 so your phone can connect; use 127.0.0.1 for PC-only.")
+    ap.add_argument("--no-browser", action="store_true", help="Don't open the app in this PC's browser on start")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--no-bot", action="store_true", help="Don't start the Telegram bot")
     ap.add_argument("--ssl-certfile", help="HTTPS certificate (e.g. from `tailscale cert`): lets Android install the app")
@@ -22,20 +23,19 @@ def main() -> None:
 
     from agent.config import load_settings
 
-    settings = load_settings()
-    if args.host not in ("127.0.0.1", "localhost", "::1") and not settings.secrets.api_token:
-        sys.exit("Refusing to listen on a non-local address without INSTACC_API_TOKEN set in .env")
+    settings = load_settings()   # creates a strong app password in .env if there isn't one
 
     import uvicorn
 
     from agent.api.app import create_app
 
-    app = create_app(settings, start_bot=not args.no_bot)
-    ssl = {}
-    if args.ssl_certfile or args.ssl_keyfile:
-        if not (args.ssl_certfile and args.ssl_keyfile):
-            sys.exit("--ssl-certfile and --ssl-keyfile must be given together")
-        ssl = {"ssl_certfile": args.ssl_certfile, "ssl_keyfile": args.ssl_keyfile}
+    if bool(args.ssl_certfile) != bool(args.ssl_keyfile):
+        sys.exit("--ssl-certfile and --ssl-keyfile must be given together")
+    scheme = "https" if args.ssl_certfile else "http"
+    app = create_app(settings, start_bot=not args.no_bot, port=args.port, scheme=scheme,
+                     announce=True, open_browser=not args.no_browser,
+                     phone_reachable=args.host not in ("127.0.0.1", "localhost", "::1"))
+    ssl = {"ssl_certfile": args.ssl_certfile, "ssl_keyfile": args.ssl_keyfile} if args.ssl_certfile else {}
     uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level.lower(), **ssl)
 
 

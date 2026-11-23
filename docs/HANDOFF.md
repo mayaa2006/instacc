@@ -4,6 +4,25 @@ Written at the end of the cloud session that built the agent side, for whoever c
 Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
 
 ## Latest changes (newest first)
+- **Phone setup is now one QR scan** (user request: "simpler to install on my phone").
+  - `start-agent.bat` now:
+    - listens on the network by default (`--host 127.0.0.1` for PC-only)
+    - creates `INSTACC_API_TOKEN` in `.env` if it's missing
+    - prints a console banner with a QR code and the Wi-Fi/Tailscale links
+    - opens the PC browser already signed in (`--no-browser` to skip)
+  - Pairing codes are single-use, expire in 10 min and are throttled against guessing. They travel in the URL
+    fragment `#pair=...`. Implementation: `agent/pairing.py` and `agent/net.py`; routes `POST /api/pair/new`,
+    `GET /api/pair/qr.svg` and the unauthenticated `POST /pair/claim`.
+  - App: the login screen explains the QR steps (password is a fallback); there's an install banner and an
+    "Install on this phone" card with Android/iPhone steps, and a PC-only "Connect a phone" card with the QR.
+  - Telegram: `/app` sends one-tap, signed-in links.
+  - New dependency: `qrcode` (pure Python, in `requirements-agent.txt`). **Re-run `install-agent-deps.bat`.**
+  - Verified in the cloud: 62 tests, plus a Playwright run of PC → QR → Pixel 7. The phone ended up signed in,
+    a reused link was rejected, banner dismissal stuck after reload, and there were no JS errors.
+  - **To verify on the PC:**
+    1. Check that the QR renders in the console window. The `.bat` runs `chcp 65001` for UTF-8; if the QR
+       looks garbled, use More → Connect a phone instead.
+    2. Check that the Windows Firewall prompt appears and that the phone can open the link on Wi-Fi.
 - **Default is now FREE and fully local** (user request). `config/agent.yaml` has
   `slot_profile: local`: `alt` and `judge` both run on the local `main` Qwen 30B, so nothing goes to the
   cloud and nothing costs money.
@@ -94,7 +113,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 | CI | `.github/workflows/tests.yml` | Ubuntu + Windows. Hasn't run yet: no default branch on GitHub |
 
 ## 3. What was verified, and how
-- **55 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
+- **62 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
   - The fakes check request shapes: headers, `is_ai_generated`/`is_aigc`, chunk ranges and token rotation.
 - **Live run against real `llama-server`, using a tiny Qwen3-0.6B on CPU in the cloud:**
   - the scheduler starts, stops and restarts servers across mode switches

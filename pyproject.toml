@@ -10,6 +10,7 @@ dependencies = [
   "pydantic>=2.7",
   "pyyaml>=6.0",
   "python-telegram-bot>=21.0",
+  "qrcode>=7.4",
 ]
 
 [project.optional-dependencies]

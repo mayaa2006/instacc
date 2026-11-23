@@ -5,3 +5,4 @@ httpx>=0.27
 pydantic>=2.7
 pyyaml>=6.0
 python-telegram-bot>=21.0
+qrcode>=7.4
