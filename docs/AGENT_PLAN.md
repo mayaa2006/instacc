@@ -118,6 +118,8 @@ The model landscape moves monthly, so treat these as *slots* to fill with whatev
 | `embed` | Memory / RAG | A small embedding model (bge / nomic / Qwen-embedding class) |
 | `vlm` | Reviews generated video frames for consistency and quality | An open vision-language model (Qwen-VL class). It closes the loop with the video pipeline. |
 
+> **Chosen setup: a single RTX 4090 (24 GB) plus cloud for some steps. See §8 for the concrete config.**
+
 ### Hardware tiers (the GPU is shared with video generation)
 - **24 GB (e.g. 3090/4090):** run `fast` + one ~30B MoE at Q4. Get proposer diversity from roles and temperatures, plus one swapped-in alt model. Schedule deep thinking and video rendering at *different times*.
 - **32–48 GB:** keep `main` + `alt` resident, and swap `judge` in when needed.
@@ -221,3 +223,70 @@ You can't claim the swarm beats a single model without measuring it.
 3. Rate them **blind** in pairs on your phone (a simple swipe UI in the PWA).
 4. Track win rate, cost (GPU-seconds) and latency per pipeline config. Cut any stage that doesn't move the win rate. This is how you find out whether critique rounds, the contrarian, or loops are worth their compute.
 5. Re-run the eval every time you swap a model.
+
+---
+
+## 8. Concrete config: RTX 4090 (24 GB) + hybrid cloud
+
+### Core principle: the GPU has two modes, and the cloud fills the gaps
+A 14B-class video model with character references will use roughly all 24 GB, so the LLMs and video can't share the card at the same time. The GPU scheduler switches between two modes:
+
+| | **Think mode** (GPU → LLMs) | **Render mode** (GPU → video) |
+|---|---|---|
+| GPU | `main` MoE (~30B total / ~3B active, Q4_K_M ≈ 17–19 GB) + embeddings (~1 GB), 16k context with q8 KV cache | Video model, ~22+ GB |
+| CPU / system RAM | `fast` model (3–4B Q4) on CPU | `fast` model on CPU; `main` unloaded or running with its MoE experts offloaded to CPU (`llama.cpp --n-cpu-moe`, slow but works with ≥64 GB RAM) |
+| Cloud | Proposer diversity, critique, judge | All deep thinking |
+| Agent still does | Everything | Comment triage, scheduling, approvals; deep tasks go to the cloud or are queued for the next think window |
+
+Default schedule: **render overnight in batches, think during the day.** The calendar planner produces the next day's VideoJobs in the evening so the overnight render queue is full. If your system RAM is ≥64 GB, MoE expert offloading lets `main` stay usable even in render mode.
+
+### Local vs. cloud routing policy
+Every LLM call carries a `sensitivity` tag. The router enforces it:
+
+| Goes **local** (uncensored, private) | May go to **cloud** |
+|---|---|
+| Final persona-voice writing (captions, scripts, dialogue) | Trend and competitor analysis |
+| Anything that would be refused by a cloud model | Weekly and monthly strategy proposers and critique |
+| DMs, follower personal info, your account credentials | Judging and rubric scoring on non-sensitive drafts |
+| Persona Bible edits | Eval-set judging (§7), where a strong neutral judge matters most |
+
+**Refusal fallback:** if a cloud model refuses or waters down a response (detected with a cheap classifier on the `fast` model), the call is retried automatically on the local `main` model and the event is logged. This keeps the cloud's quality advantage without inheriting its censorship.
+
+### Cloud provider
+- **OpenRouter** (one API key, OpenAI-compatible, fits behind LiteLLM): it gives you both frontier models *and* open models from other families, including less-filtered fine-tunes. That solves the 24 GB problem of only running one local family. Cross-family proposer diversity now comes from the cloud.
+- Set a **hard monthly budget cap** in LiteLLM, with per-task-type budgets. Rough expectation: a few dollars to low tens of dollars per month at the volume of a single account.
+- Optional: rent a cloud GPU (RunPod / Vast) by the hour for video bursts when the overnight queue isn't enough. That decision belongs to the video side, but it uses the same GPU scheduler interface.
+
+### Updated deliberation configs
+```yaml
+models:
+  fast:   {where: local_cpu, model: "<3-4B instruct, Q4>"}
+  main:   {where: local_gpu, model: "<~30B MoE abliterated, Q4_K_M>"}
+  alt:    {where: cloud, model: "<different-family open model via OpenRouter>"}
+  judge:  {where: cloud, model: "<strong frontier or large open model>"}
+  vlm:    {where: local_gpu, model: "<Qwen-VL class, Q4>", mode: think}  # frame checks after render batch
+
+caption:            # sensitive: persona voice
+  proposers: [main@0.9, main@1.1:alt_role]
+  synthesizer: main@0.3
+  judge: judge        # judge only sees the draft, no private data
+  threshold: 7.0
+  max_loops: 1
+comment_reply:
+  route: fast         # L1 auto for simple positives; else main draft → approval
+weekly_strategy:
+  proposers: [main@0.9, alt@0.9, judge@1.0:contrarian]
+  critique: true
+  synthesizer: main@0.3   # final synthesis local so voice stays uncensored
+  judge: judge
+  threshold: 8.0
+  max_loops: 2
+```
+
+### Revised Phase 1 checklist (4090)
+1. Install `llama.cpp` server (CUDA build), then download the `fast` and `main` GGUFs and a small embedding model.
+2. Set up LiteLLM with three endpoints (local-gpu, local-cpu, openrouter), a budget cap, and the refusal-fallback hook.
+3. Build the GPU scheduler v0: a single Redis lock with `think` / `render` modes. Model servers are started and stopped by the scheduler.
+4. Set up the FastAPI app, SQLite + sqlite-vec, and the Persona Bible.
+5. Install Tailscale on the PC and phone, and set up the Telegram bot for approve / reject / rethink.
+6. Milestone: send "give me 5 hooks for X" from your phone, see the deliberation trace, and approve one.
