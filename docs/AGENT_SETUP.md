@@ -65,7 +65,27 @@ bottom tabs on a phone, a sidebar on a PC.
 - **More:** your character, story facts, accounts, GPU mode, and a link to the **classic** view
   (`/classic`) with evals, traces and raw settings.
 
-On your phone use "Add to Home Screen" (Safari: Share menu; Chrome: ⋮ menu) to get an app icon.
+### Android
+**Quick (home Wi-Fi):** start with `start-agent.bat --host 0.0.0.0`, then open `http://<pc-ip>:8000` in Chrome
+on the phone and use **⋮ → Add to Home screen**. You get an icon, but over plain `http` it opens inside a Chrome tab.
+Find the PC's IP with `ipconfig` (IPv4 Address).
+
+**Proper app (own window, works away from home):** Chrome only *installs* web apps over HTTPS. The easiest
+HTTPS is Tailscale. This is the one system install; skip it if you want to stay strictly portable.
+1. Install Tailscale on the PC and on the phone (Play Store), and sign in to both with the same account.
+2. In the Tailscale admin console → DNS, enable **MagicDNS** and **HTTPS Certificates**.
+3. On the PC: `tailscale serve --bg 8000`. This puts the agent at `https://<pc-name>.<tailnet>.ts.net`
+   with a real certificate. Keep the agent on its default `127.0.0.1`, since Tailscale forwards to it.
+4. Open that address in Chrome on the phone, then **⋮ → Install app**. It opens full-screen like any app,
+   and long-pressing the icon gives "Inbox" and "Plan my week" shortcuts.
+
+If you'd rather serve HTTPS directly, `tailscale cert <pc-name>.<tailnet>.ts.net` writes a certificate, and
+`start-agent.bat --host 0.0.0.0 --ssl-certfile <file>.crt --ssl-keyfile <file>.key` serves it.
+
+**Telegram** works on Android from anywhere with no setup beyond the bot, and pairs well with the app:
+the bot pings you, and the app is for browsing and longer edits.
+
+On an iPhone, use Safari → Share → "Add to Home Screen".
 
 ### Phone access
 - **Telegram (fully portable, recommended):** the bot polls outward, so nothing is exposed.

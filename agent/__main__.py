@@ -12,6 +12,8 @@ def main() -> None:
                     help="Bind address. Use 0.0.0.0 or your Tailscale IP to reach it from your phone.")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--no-bot", action="store_true", help="Don't start the Telegram bot")
+    ap.add_argument("--ssl-certfile", help="HTTPS certificate (e.g. from `tailscale cert`): lets Android install the app")
+    ap.add_argument("--ssl-keyfile", help="HTTPS private key matching --ssl-certfile")
     ap.add_argument("--log-level", default="INFO")
     args = ap.parse_args()
 
@@ -29,7 +31,12 @@ def main() -> None:
     from agent.api.app import create_app
 
     app = create_app(settings, start_bot=not args.no_bot)
-    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level.lower())
+    ssl = {}
+    if args.ssl_certfile or args.ssl_keyfile:
+        if not (args.ssl_certfile and args.ssl_keyfile):
+            sys.exit("--ssl-certfile and --ssl-keyfile must be given together")
+        ssl = {"ssl_certfile": args.ssl_certfile, "ssl_keyfile": args.ssl_keyfile}
+    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level.lower(), **ssl)
 
 
 if __name__ == "__main__":

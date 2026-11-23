@@ -1,16 +1,23 @@
 {
+  "id": "/",
   "name": "instacc",
   "short_name": "instacc",
-  "start_url": "/",
+  "description": "Approve, plan and post your content",
+  "start_url": "/#inbox",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#5b5bd6",
+  "orientation": "portrait",
+  "background_color": "#f4f4f7",
   "theme_color": "#5b5bd6",
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ],
+  "shortcuts": [
+    {"name": "Inbox", "url": "/#inbox", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Plan my week", "url": "/#create", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]}
   ]
 }

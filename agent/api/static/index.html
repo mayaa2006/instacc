@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>instacc</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#5b5bd6">
@@ -181,7 +182,7 @@ document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.da
 function go(v) {
   view = v;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
-  try { history.replaceState(null, "", "#" + v); } catch (e) {}
+  try { if (location.hash !== "#" + v) history.pushState(null, "", "#" + v); } catch (e) {}
   window.scrollTo(0, 0);
   refresh();
 }
@@ -354,11 +355,12 @@ async function renderCalendar() {
   const [upcoming, done] = await Promise.all([api("/posts?active=true"), api("/posts?status=published")]);
   const groups = {};
   upcoming.forEach(p => { const k = p.scheduled_at ? dayLabel(p.scheduled_at) : "Not scheduled"; (groups[k] = groups[k] || []).push(p); });
-  const row = p => `<div class="card post" data-post="${p.id}"><div class="time">${p.scheduled_at ? timeOnly(p.scheduled_at) : "–"}</div>
+  const shortDay = ts => new Date(ts * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+  const row = (p, past) => `<div class="card post" data-post="${p.id}"><div class="time">${p.scheduled_at ? (past ? shortDay(p.scheduled_at) : timeOnly(p.scheduled_at)) : "–"}</div>
     <div class="what"><div>${esc(p.concept)}</div><div class="muted">${pill(p.status)}</div></div><span class="muted">›</span></div>`;
   $("#main").innerHTML = `<h1>Calendar</h1><p class="sub">${upcoming.length} coming up</p>
-    ${upcoming.length ? Object.entries(groups).map(([d, ps]) => `<div class="day">${esc(d)}</div>` + ps.map(row).join("")).join("") : `<div class="empty"><div class="e">📅</div><p>No posts planned.</p><button class="btn primary" onclick="go('create')">Plan my week</button></div>`}
-    ${done.length ? `<h2>Posted</h2>` + done.slice(0, 10).map(row).join("") : ""}`;
+    ${upcoming.length ? Object.entries(groups).map(([d, ps]) => `<div class="day">${esc(d)}</div>` + ps.map(p => row(p)).join("")).join("") : `<div class="empty"><div class="e">📅</div><p>No posts planned.</p><button class="btn primary" onclick="go('create')">Plan my week</button></div>`}
+    ${done.length ? `<h2>Posted</h2>` + done.slice(0, 10).map(p => row(p, true)).join("") : ""}`;
   document.querySelectorAll("[data-post]").forEach(el => el.onclick = () => openPost(el.dataset.post));
 }
 async function openPost(id) {
@@ -378,6 +380,7 @@ async function openPost(id) {
       <div class="row"><button class="btn wide" id="shMove">Move</button>${p.status === "scheduled" ? `<button class="btn primary wide" id="shNow">Post now</button>` : ""}
       ${p.status === "failed" ? `<button class="btn primary wide" id="shRetry">Try again</button>` : ""}<button class="btn ghost danger" id="shDrop">Drop</button></div>` : ""}`;
   const dlg = $("#sheet"); dlg.showModal();
+  try { history.pushState({ sheet: 1 }, "", location.hash); } catch (e) {}
   $("#shClose").onclick = () => dlg.close();
   const close = msg => () => { dlg.close(); toast(msg); refresh(); };
   const on = (sel, fn, msg) => { const el = $(sel); if (el) el.onclick = async () => { try { await fn(); close(msg)(); } catch (e) { toast(e.message); } }; };
@@ -387,6 +390,8 @@ async function openPost(id) {
   on("#shDrop", () => { if (!confirm("Drop this post?")) throw new Error("Kept"); return post(`/posts/${id}/drop`); }, "Dropped");
 }
 $("#sheet").addEventListener("click", e => { if (e.target === $("#sheet")) $("#sheet").close(); });
+// however the sheet closes (✕, tap outside, Android Back), drop its history entry
+$("#sheet").addEventListener("close", () => { if (history.state && history.state.sheet) history.back(); });
 
 /* ---------------- stats ---------------- */
 async function renderStats() {
@@ -454,7 +459,15 @@ async function renderMore() {
 /* ---------------- boot ---------------- */
 $("#app").classList.remove("hidden");
 const VIEWS = ["inbox", "create", "calendar", "stats", "more"];
+window.addEventListener("popstate", () => {
+  if ($("#sheet").open) { $("#sheet").close(); return; }
+  const v = location.hash.slice(1) || "inbox";
+  if (VIEWS.includes(v) && v !== view) go(v);
+});
 window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (VIEWS.includes(v) && v !== view) go(v); });
+// keep focused inputs visible above the Android keyboard
+document.addEventListener("focusin", e => { if (e.target.matches("textarea, input")) setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300); });
+if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});
 const start = (location.hash || "").slice(1);
 go(VIEWS.includes(start) ? start : "inbox");
 setInterval(() => { if (!document.hidden && !$("#sheet").open && !document.activeElement.matches("textarea, input")) refresh(); }, 20000);

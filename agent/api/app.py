@@ -169,6 +169,17 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
     def icon():
         return FileResponse(STATIC / "icon.svg", media_type="image/svg+xml")
 
+    @app.get("/icon-{size}.png")
+    def icon_png(size: str):
+        if size not in ("192", "512", "192-maskable", "512-maskable"):
+            raise HTTPException(404)
+        return FileResponse(STATIC / f"icon-{size}.png", media_type="image/png")
+
+    @app.get("/sw.js")
+    def service_worker():
+        return FileResponse(STATIC / "sw.js", media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
     @app.get("/manifest.webmanifest")
     def manifest():
         return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
