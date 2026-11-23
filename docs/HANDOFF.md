@@ -1,7 +1,27 @@
 # Handoff: agent side of instacc
 
 Written at the end of the cloud session that built the agent side, for whoever continues on the PC.
-Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc` (8 commits).
+Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
+
+## Latest changes (newest first)
+- **Cloud models are now uncensored / low-refusal** (user request). In `config/agent.yaml`:
+  - `alt` → `cognitivecomputations/dolphin-mistral-24b-venice-edition`
+  - `judge` → `nousresearch/hermes-4-405b`
+
+  To verify on the PC:
+  1. With `OPENROUTER_API_KEY` set, run one `idea` task and check its trace. The `alt` and `judge` steps
+     should show the `openrouter` endpoint, with no `rerouted: refusal->local` notes on normal prompts.
+  2. Check that the judge returns parseable JSON (scores appear in the result).
+  3. If Hermes' reasoning makes the JSON unreliable, try a non-reasoning judge (e.g.
+     `sao10k/l3.1-euryale-70b`, also on OpenRouter) and re-run the eval.
+
+  Cost per call is lower than before, since Sonnet was $3/$15 per million tokens and these are $0.20–1 in
+  and $0.90–3 out.
+
+  Things that did not change:
+  - Private task types still never use the cloud.
+  - The refusal fallback to the local model stays on.
+  - Embeddings are local only, enforced in code.
 
 ## 1. Current situation
 - The PC folder `C:\Users\nehem\Downloads\InstACC` holds the video instance's work. It is
@@ -87,8 +107,12 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 ## 5. Open questions for the user
 - **RAM:** 15.9 GB measured vs "64 GB" stated. If they upgrade, uncomment the `render:` profiles in
   `config/agent.yaml`.
-- **Cloud model picks:** `alt` = Mistral Small 3.2 and `judge` = Claude Sonnet 4.5 via OpenRouter, with a
-  $20/month cap. These are placeholders; verify the IDs on openrouter.ai.
+- **Cloud model picks (changed at the user's request: uncensored cloud models):**
+  - `alt` = `cognitivecomputations/dolphin-mistral-24b-venice-edition` (Mistral family)
+  - `judge` = `nousresearch/hermes-4-405b` (Llama family)
+  - Both IDs were checked against OpenRouter's live model list in Nov 2026. The cap is still $20/month.
+  - Hermes 4 can emit `<think>` blocks; the client strips them, and the judge slot has
+    `max_tokens: 3000` so reasoning doesn't truncate the JSON.
 - **Tailscale:** it's a system install, so it breaks the portable rule. It's only needed for a full
   Android app install and access away from home. The user hasn't decided; Telegram works without it.
 
