@@ -35,11 +35,15 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   stop during renders.
 
 ## Dev commands
-- Tests: `python\python.exe -m pytest -q` (50 tests; needs `pip install pytest pytest-asyncio`).
+- Tests: `python\python.exe -m pytest -q` (55 tests; needs `pip install pytest pytest-asyncio`).
 - Run: `start-agent.bat` (add `--host 0.0.0.0` for the phone). The app is at `/`, the classic
   dashboard at `/classic`.
 - Config: `config/agent.yaml` (models, servers, publishing, autonomy) and `config/tasks.yaml`
   (deliberation per task type).
+- **Models are free and local by default** (`slot_profile: local`).
+  - `slot_profile: cloud` switches `alt`/`judge` to uncensored OpenRouter models (paid, capped).
+  - With one local model, variety comes from role sampling, seeds, creative constraints, sequential
+    anti-repetition, the 4B wildcard, dedupe and the judge panel (all in `config/tasks.yaml`).
 
 ## Code conventions learned the hard way
 - FastAPI routes that start background work (`asyncio.create_task`, e.g. `tasks.create`,

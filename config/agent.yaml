@@ -65,10 +65,21 @@ slots:
   main:  {endpoint: local_main, model: main}
   fast:  {endpoint: local_fast, model: fast}
   embed: {endpoint: local_embed, model: embed}
-  # Uncensored / low-refusal cloud models (checked on openrouter.ai 2026-11), each a different family
-  # from the local Qwen so proposals stay diverse. Refusal fallback to local main stays on as a safety net.
-  alt:   {endpoint: openrouter, model: "cognitivecomputations/dolphin-mistral-24b-venice-edition", price_in: 0.2, price_out: 0.9}
-  judge: {endpoint: openrouter, model: "nousresearch/hermes-4-405b", price_in: 1.0, price_out: 3.0, max_tokens: 3000}
+  # alt / judge are defined by the active slot_profile below.
+
+# Which models fill the alt / judge roles:
+#   local: FREE. Everything runs on the PC with the uncensored Qwen models; variety comes from roles, sampling,
+#          constraints, the 4B model as a wildcard, de-duplication and an audience-panel judge (config/tasks.yaml).
+#   cloud: uncensored OpenRouter models from other model families (costs money, capped by budget.monthly_usd).
+slot_profile: local
+slot_profiles:
+  local:
+    alt:   {endpoint: local_main, model: main}
+    judge: {endpoint: local_main, model: main, max_tokens: 1500}
+  cloud:
+    # checked on openrouter.ai 2026-11; refusal fallback to local main stays on as a safety net
+    alt:   {endpoint: openrouter, model: "cognitivecomputations/dolphin-mistral-24b-venice-edition", price_in: 0.2, price_out: 0.9}
+    judge: {endpoint: openrouter, model: "nousresearch/hermes-4-405b", price_in: 1.0, price_out: 3.0, max_tokens: 3000}
 
 routing:
   # Slot used when a PRIVATE call would otherwise go to the cloud, or a cloud call refuses.

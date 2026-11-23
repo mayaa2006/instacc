@@ -8,7 +8,7 @@ option, then compares variants pairwise and blind:
 
 Variants:
   pipeline                        the task type's own config
-  pipeline:no-critique,no-loops   ablations: no-critique | no-judge | no-synth | no-loops
+  pipeline:no-critique,no-loops   ablations: no-critique | no-judge | no-synth | no-loops | no-variety
   single:<slot>                   one call, one option, no deliberation (e.g. single:main, single:judge)
 """
 from __future__ import annotations
@@ -50,7 +50,7 @@ OPTION 2:
 
 Reply with ONLY JSON: {{"winner": "1" | "2" | "tie", "reason": "<one sentence>"}}"""
 
-ABLATIONS = {"no-critique", "no-judge", "no-synth", "no-loops"}
+ABLATIONS = {"no-critique", "no-judge", "no-synth", "no-loops", "no-variety"}
 
 
 class EvalError(ValueError):
@@ -90,6 +90,10 @@ def variant_cfg(variant: str, base: TaskCfg, slots: set[str]) -> TaskCfg:
             cfg.judge = None
         if "no-loops" in mods:
             cfg.max_loops = 0
+        if "no-variety" in mods:   # measure whether the single-model variety tricks earn their cost
+            cfg.diversify, cfg.constraints, cfg.dedupe = "parallel", False, None
+            cfg.judge_panel, cfg.shuffle_for_judge = 1, False
+            cfg.proposers = [p for p in cfg.proposers if not p.startswith("fast@")] or cfg.proposers
         return cfg
     raise EvalError(f"unknown variant {variant!r} (use pipeline[:mods] or single:<slot>)")
 

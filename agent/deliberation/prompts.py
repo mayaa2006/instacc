@@ -16,7 +16,7 @@ PROPOSER = """ROLE: {role}
 
 TASK TYPE: {task_type} — {task_desc}
 REQUEST: {prompt}
-{note}{feedback}
+{note}{feedback}{constraint}{taken}
 Produce {n} distinct options. Make them genuinely different from each other (different angles, not rewordings).
 Reply with ONLY JSON in this shape:
 {{"options": [{{"text": "<the option itself>", "rationale": "<one sentence: why this works>"}}]}}"""
@@ -46,7 +46,7 @@ Reply with ONLY JSON:
   "decision_log": ["<which candidates/critique points you used or rejected, and why>"]}}"""
 
 JUDGE = """You are an impartial judge for a social media persona's content.
-REQUEST ({task_type}): {prompt}
+{persona_line}REQUEST ({task_type}): {prompt}
 
 Score each option 1-10 against this rubric (10 = would clearly outperform the persona's past content):
 {rubric}
@@ -85,3 +85,11 @@ def fmt_memory(similar: list[dict]) -> str:
         tag = f" (real result: {perf})" if perf else ""
         lines.append(f"- [{m['kind']}]{tag} {m['text']}")
     return "\n".join(lines)
+
+
+def fmt_taken(options: list[dict], limit: int = 25) -> str:
+    if not options:
+        return ""
+    lines = "\n".join(f"- {o['text'][:140]}" for o in options[:limit])
+    return ("\nANGLES ALREADY TAKEN BY TEAMMATES (do NOT reuse these ideas, formats or punchlines; "
+            "find genuinely different ones):\n" + lines + "\n")

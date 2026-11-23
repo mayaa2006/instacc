@@ -4,7 +4,39 @@ Written at the end of the cloud session that built the agent side, for whoever c
 Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
 
 ## Latest changes (newest first)
-- **Cloud models are now uncensored / low-refusal** (user request). In `config/agent.yaml`:
+- **Default is now FREE and fully local** (user request). `config/agent.yaml` has
+  `slot_profile: local`: `alt` and `judge` both run on the local `main` Qwen 30B, so nothing goes to the
+  cloud and nothing costs money.
+  - To go back to the uncensored cloud models, set `slot_profile: cloud`; the profiles live under
+    `slot_profiles:`.
+  - **Variety with one model.** Everything is configurable per task in `config/tasks.yaml`, and the
+    engine changes are in `agent/deliberation/engine.py`:
+    1. Each role has its own sampling settings (`temperature`, `top_p`, `min_p`, `presence_penalty`) plus a
+       fresh `seed` per call.
+    2. `constraints: true`: each proposer gets a different random line from `creative_constraints`.
+    3. `diversify: sequential`: GPU proposers run one by one and are told the "angles already taken". This is
+       free on one GPU. CPU and cloud proposers run alongside.
+    4. A `fast@1.2:wildcard` proposer (4B on CPU) was added to `hooks`, `idea` and `plan`.
+    5. `dedupe: 0.9`: near-duplicate options are dropped using local embeddings (trace stage `dedupe`).
+    6. `judge_panel: 2`: the judge scores as 2 random `judge_personas` on shuffled options, and the scores
+       are averaged (`panel_scores` in results).
+  - **New eval ablation `pipeline:no-variety`**, to measure whether the tricks above earn their time.
+  - Tests: 55 pass. New ones are in `tests/test_variety.py`. The `settings` fixture applies the **cloud**
+    profile so the routing tests keep meaning something; `local_settings` is the shipped config.
+  - **To verify on the PC (no OpenRouter key needed):**
+    1. Run one `hooks` task. Its trace should show only `local_*` endpoints, a `constraint:` note per
+       proposer, a `dedupe` step, and 2 `judge` steps with `panel:` notes.
+    2. Record the total time. Sequential proposers plus the panel judge make it slower than a single pass.
+    3. Then run eval variants `single:main`, `pipeline` and `pipeline:no-variety` (limit 10), and let the
+       user rate them blind.
+  - **Verified live on llama-server (cloud, tiny model):** `top_p`, `min_p`, `top_k`, `presence_penalty` and
+    `seed` are accepted together with JSON mode, and the same seed reproduces the same output.
+  - **Not verified:** a full multi-proposer run end to end on real hardware. The cloud CPU was too slow
+    (0.5 tok/s with two servers), so the PC run is the first real one.
+  - **Possible issue:** at high temperature with JSON mode, a small model can ramble up to `max_tokens`. If the
+    `fast` wildcard is slow or truncated on the PC, lower its temperature in `config/tasks.yaml` (roles →
+    wildcard) or cap its output.
+- **Cloud models are now uncensored / low-refusal** (user request; now the `cloud` profile, not the default). In `config/agent.yaml`:
   - `alt` → `cognitivecomputations/dolphin-mistral-24b-venice-edition`
   - `judge` → `nousresearch/hermes-4-405b`
 
@@ -62,7 +94,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 | CI | `.github/workflows/tests.yml` | Ubuntu + Windows. Hasn't run yet: no default branch on GitHub |
 
 ## 3. What was verified, and how
-- **50 tests pass** on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
+- **55 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
   - The fakes check request shapes: headers, `is_ai_generated`/`is_aigc`, chunk ranges and token rotation.
 - **Live run against real `llama-server`, using a tiny Qwen3-0.6B on CPU in the cloud:**
   - the scheduler starts, stops and restarts servers across mode switches

@@ -1,24 +1,79 @@
 # Deliberation configs per task type.
-# proposer entry: "<slot>@<temperature>[:<role>]"
-# sensitivity: private -> every step stays local; public -> cloud slots allowed.
+# proposer entry: "<slot>@<temperature>[:<role>]"   (a role's own temperature, if set, wins)
+# sensitivity: private -> every step stays local; public -> cloud slots allowed (if the cloud profile is active).
+#
+# VARIETY when every slot is the same local model (slot_profile: local):
+#   - roles below each have their own sampling (temperature / top_p / min_p / presence_penalty) + a random seed
+#   - constraints: true    -> each proposer gets a random creative constraint from creative_constraints
+#   - diversify: sequential -> each proposer is told which angles are already taken and must avoid them
+#                             (free on one GPU: local calls run one after another anyway)
+#   - "fast@...:wildcard"  -> the 4B model (different size, runs on CPU) brainstorms in parallel
+#   - dedupe: 0.9          -> near-duplicate options are dropped before the synthesizer (local embeddings)
+#   - judge_panel: N       -> the judge scores as N different audience personas; scores are averaged
+#   - shuffle_for_judge    -> options are shuffled so the judge can't favour the synthesizer's order
+
 roles:
-  strategist: "You think about long-term growth, positioning and what makes this persona distinct."
-  hook: "You are obsessed with the first 1.5 seconds: scroll-stopping hooks, trends, pattern interrupts."
-  audience: "You speak for the target audience: what they actually feel, want, and would comment on."
-  contrarian: "You deliberately take the unexpected angle and push back on the obvious idea."
-  writer: "You write in the persona's exact voice."
+  strategist:
+    prompt: "You think about long-term growth, positioning and what makes this persona distinct."
+    temperature: 0.8
+    top_p: 0.9
+  hook:
+    prompt: "You are obsessed with the first 1.5 seconds: scroll-stopping hooks, trends, pattern interrupts."
+    temperature: 1.0
+    min_p: 0.05
+    presence_penalty: 0.4
+  audience:
+    prompt: "You speak for the target audience: what they actually feel, want, and would comment on."
+    temperature: 0.9
+    top_p: 0.95
+  contrarian:
+    prompt: "You deliberately take the unexpected angle and push back on the obvious idea. Never suggest the first thing anyone would think of."
+    temperature: 1.15
+    min_p: 0.08
+    presence_penalty: 0.8
+  wildcard:
+    prompt: "You are a chaotic brainstormer. Quantity and weirdness over polish: odd formats, absurd premises, mashups."
+    temperature: 1.2
+    min_p: 0.05
+  writer:
+    prompt: "You write in the persona's exact voice."
+    temperature: 0.7
+
+creative_constraints:
+  - "Start from one concrete sensory detail (a sound, a texture, a smell)."
+  - "Make it a micro-story with a twist in the last second."
+  - "Use a recognizable short-video format (POV, rating things, 'things I stopped doing', before/after) but subvert it."
+  - "Build it around a single on-screen text line that does all the work."
+  - "Write it from the point of view of an object in the scene."
+  - "Lean into self-deprecating failure: the joke is that it goes wrong."
+  - "Make the audience the main character (second person, 'you')."
+  - "Tie it to a specific time: 7am, 2am, Sunday afternoon, the first cold day."
+  - "Use contrast: expectation vs reality, cheap vs expensive, then vs now."
+  - "Make it something people would send to one specific friend."
+  - "Use a tiny recurring character or object that could come back in future videos."
+  - "Make it quiet and slow instead of loud and fast."
+
+judge_personas:
+  - "a 22-year-old art student scrolling at 1am, bored of polished content"
+  - "a 29-year-old with a busy job who follows a few cozy creators to unwind"
+  - "a fellow creator in the same niche who has seen every trend twice"
+  - "a casual viewer who has never seen this persona before"
 
 tasks:
   hooks:
     description: "Scroll-stopping hooks for a video idea"
     sensitivity: public
     n_options: 5
-    proposers: ["main@0.9:hook", "alt@0.9:audience", "main@1.1:contrarian"]
+    proposers: ["main@0.9:hook", "alt@0.9:audience", "main@1.1:contrarian", "fast@1.2:wildcard"]
     critique: false
     synthesizer: "main@0.3:writer"
     judge: judge
     threshold: 7.0
     max_loops: 1
+    diversify: sequential
+    constraints: true
+    dedupe: 0.9
+    judge_panel: 2
   caption:
     description: "Captions + hashtags for a post"
     sensitivity: private          # persona voice stays local
@@ -29,26 +84,37 @@ tasks:
     judge: main                   # private -> local judge
     threshold: 7.0
     max_loops: 1
+    diversify: sequential
+    dedupe: 0.92
+    judge_panel: 1
   idea:
     description: "Video concepts for the persona"
     sensitivity: public
     n_options: 5
-    proposers: ["main@0.9:strategist", "alt@0.9:hook", "judge@1.0:contrarian"]
+    proposers: ["main@0.9:strategist", "alt@0.9:hook", "judge@1.0:contrarian", "fast@1.2:wildcard"]
     critique: true
     synthesizer: "main@0.3:strategist"
     judge: judge
     threshold: 7.5
     max_loops: 2
+    diversify: sequential
+    constraints: true
+    dedupe: 0.9
+    judge_panel: 2
   plan:
     description: "A week of post concepts (pick several to schedule)"
     sensitivity: public
     n_options: 7
-    proposers: ["main@0.9:strategist", "alt@0.9:audience", "judge@1.0:contrarian"]
+    proposers: ["main@0.9:strategist", "alt@0.9:audience", "judge@1.0:contrarian", "fast@1.2:wildcard"]
     critique: true
     synthesizer: "main@0.3:strategist"
     judge: judge
     threshold: 7.0
     max_loops: 1
+    diversify: sequential
+    constraints: true
+    dedupe: 0.88
+    judge_panel: 2
   reply:
     description: "Reply to a follower comment"
     sensitivity: private

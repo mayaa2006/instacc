@@ -41,6 +41,20 @@ class SlotCfg(BaseModel):
     max_tokens: int = 2048
 
 
+class RoleCfg(BaseModel):
+    """A proposer lens: its instructions plus its own sampling, so one model explores differently per role."""
+    prompt: str
+    temperature: float | None = None   # overrides the temperature in the task's "slot@temp:role" spec
+    top_p: float | None = None
+    min_p: float | None = None
+    top_k: int | None = None
+    presence_penalty: float | None = None
+
+    def sampling(self) -> dict:
+        return {k: v for k, v in (("top_p", self.top_p), ("min_p", self.min_p), ("top_k", self.top_k),
+                                  ("presence_penalty", self.presence_penalty)) if v is not None}
+
+
 class RoutingCfg(BaseModel):
     local_fallback_slot: str = "main"
     refusal_fallback: bool = True
@@ -113,6 +127,9 @@ class AgentCfg(BaseModel):
     slots: dict[str, SlotCfg]
     routing: RoutingCfg = Field(default_factory=RoutingCfg)
     budget: BudgetCfg = Field(default_factory=BudgetCfg)
+    # Named slot overrides; `slot_profile` picks one at load time ("local" = free, everything on the PC)
+    slot_profiles: dict[str, dict[str, SlotCfg]] = Field(default_factory=dict)
+    slot_profile: str | None = None
     comfyui: ComfyCfg = Field(default_factory=ComfyCfg)
     publishing: PublishingCfg = Field(default_factory=PublishingCfg)
     autonomy: AutonomyCfg = Field(default_factory=AutonomyCfg)
@@ -129,10 +146,18 @@ class TaskCfg(BaseModel):
     judge: str | None = None
     threshold: float = 7.0
     max_loops: int = 1
+    # --- variety controls (matter most when every slot is the same local model) ---
+    diversify: Literal["parallel", "sequential"] = "parallel"   # sequential: later proposers avoid taken angles
+    constraints: bool = False        # give each proposer a random creative constraint
+    dedupe: float | None = None      # drop near-duplicate options above this cosine similarity (e.g. 0.9)
+    judge_panel: int = 1             # judge as N different audience personas and average
+    shuffle_for_judge: bool = True   # hide which option the synthesizer wrote / fight position bias
 
 
 class TasksCfg(BaseModel):
-    roles: dict[str, str] = Field(default_factory=dict)
+    roles: dict[str, str | RoleCfg] = Field(default_factory=dict)
+    creative_constraints: list[str] = Field(default_factory=list)
+    judge_personas: list[str] = Field(default_factory=list)
     tasks: dict[str, TaskCfg]
     rubric: list[str] = Field(default_factory=list)
     default_type: str = "hooks"   # used by the router's keyword fallback
@@ -174,6 +199,14 @@ def load_dotenv(path: Path) -> None:
             os.environ[key] = val
 
 
+def apply_slot_profile(agent: "AgentCfg", name: str) -> None:
+    """Overlay a named profile (e.g. "local" or "cloud") onto the slots."""
+    if name not in agent.slot_profiles:
+        raise ValueError(f"unknown slot_profile '{name}'. Known: {', '.join(agent.slot_profiles) or 'none'}")
+    agent.slots = {**agent.slots, **agent.slot_profiles[name]}
+    agent.slot_profile = name
+
+
 def load_settings(root: Path | None = None) -> Settings:
     root = Path(root or os.environ.get("INSTACC_ROOT") or ROOT)
     load_dotenv(root / ".env")
@@ -183,6 +216,14 @@ def load_settings(root: Path | None = None) -> Settings:
     allowed = {
         int(x) for x in os.environ.get("TELEGRAM_ALLOWED_USERS", "").replace(" ", "").split(",") if x
     }
+    if agent.slot_profile:
+        apply_slot_profile(agent, agent.slot_profile)
+    for name, t in tasks.tasks.items():   # fail fast on typos instead of mid-deliberation
+        used = [p.split("@")[0] for p in t.proposers] + [x.split("@")[0] for x in (t.synthesizer, t.judge) if x]
+        missing = sorted(set(used) - set(agent.slots))
+        if missing:
+            raise ValueError(f"task '{name}' uses unknown slot(s) {missing}; "
+                             f"check slot_profile/slots in config/agent.yaml")
     secrets = Secrets(
         api_token=os.environ.get("INSTACC_API_TOKEN") or None,
         telegram_token=os.environ.get("TELEGRAM_BOT_TOKEN") or None,

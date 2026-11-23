@@ -20,6 +20,7 @@ class FakeLLM:
         self.cloud_fails = False
         self.cloud_cost = 0.002
         self.route_to = "idea"
+        self.embed_calls: list = []
         self.produce_calls = 0
         self.produce_bad_first = False
         self.reply_text = "haha thank you, the toast thanks you too"
@@ -29,13 +30,17 @@ class FakeLLM:
         cloud = "openrouter" in request.url.host
         if request.url.path.endswith("/embeddings"):
             body = json.loads(request.content)
-            data = [{"index": i, "embedding": [float(len(t) % 7), 1.0, float(len(t) % 3)]}
-                    for i, t in enumerate(body["input"])]
+            import hashlib
+            data = []
+            for i, t in enumerate(body["input"]):
+                h = hashlib.sha256(t.encode()).digest()
+                data.append({"index": i, "embedding": [b - 128.0 for b in h[:16]]})
+            self.embed_calls.append(body["input"])
             return httpx.Response(200, json={"data": data})
         body = json.loads(request.content)
         user = body["messages"][-1]["content"]
         self.calls.append({"host": host, "cloud": cloud, "model": body["model"], "user": user,
-                           "system": body["messages"][0]["content"],
+                           "system": body["messages"][0]["content"], "body": body,
                            "temperature": body.get("temperature")})
         if cloud and self.cloud_fails:
             return httpx.Response(503, text="upstream down")
@@ -119,8 +124,20 @@ def root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def settings(root):
+    """Cloud profile by default so routing tests have real cloud slots; see local_settings."""
+    from agent.config import apply_slot_profile
     s = load_settings(root)
     s.agent.data_dir = str(root / "data")
+    apply_slot_profile(s.agent, "cloud")
+    return s
+
+
+@pytest.fixture
+def local_settings(root):
+    """Settings exactly as shipped (slot_profile: local)."""
+    s = load_settings(root)
+    s.agent.data_dir = str(root / "data")
+    s.agent.llama_server.manage_processes = False
     return s
 
 

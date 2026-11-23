@@ -7,25 +7,27 @@ def build(settings, transport):
 
 
 async def test_full_pipeline_with_loop_and_approval(settings, transport, fake):
-    fake.judge_scores = [[5, 6, 4, 5, 6], [9, 7, 8, 6, 5]]  # first round below 7.5 -> loop
+    # idea uses a 2-persona judge panel: two judge calls per round, scores averaged per option
+    fake.judge_scores = [[5] * 5, [6] * 5, [9] * 5, [8] * 5]   # round 1 avg 5.5 (< 7.5) -> loop; round 2 avg 8.5
     c = build(settings, transport)
     tid = c.tasks.create("idea", "a video about burnt toast")
     await c.tasks.wait_idle()
     t = c.db.task_get(tid)
     assert t["status"] == "awaiting_approval", t["error"]
     r = t["result"]
-    assert r["loops"] == 2 and r["best_score"] == 9 and not r["below_threshold"]
+    assert r["loops"] == 2 and r["best_score"] == 8.5 and not r["below_threshold"]
+    assert r["options"][0]["panel_scores"] == [9.0, 8.0]
     assert [o["score"] for o in r["options"]] == sorted([o["score"] for o in r["options"]], reverse=True)
     assert r["decision_log"]
     stages = [s["stage"] for s in c.db.trace_get(tid)]
-    assert stages.count("judge") == 2 and "critique" in stages and "synthesize" in stages
+    assert stages.count("judge") == 4 and "critique" in stages and "synthesize" in stages
     # second round gets the judge feedback
     assert any("JUDGE FEEDBACK" in call["user"] for call in fake.calls)
     # proposers got the persona in the system prompt and different model families
     assert any(call["cloud"] for call in fake.calls)
 
     approved = await c.tasks.approve(tid, 0)
-    assert approved["status"] == "approved" and approved["chosen"]["score"] == 9
+    assert approved["status"] == "approved" and approved["chosen"]["score"] == 8.5
     mem = c.db.memory_list("idea")
     assert mem and mem[0]["text"] == approved["chosen"]["text"] and mem[0]["embedding"]
 
