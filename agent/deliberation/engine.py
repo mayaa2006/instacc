@@ -30,11 +30,12 @@ class Spec:
 
 
 class DeliberationEngine:
-    def __init__(self, settings: Settings, db: DB, llm: LLMClient, memory: Memory):
+    def __init__(self, settings: Settings, db: DB, llm: LLMClient, memory: Memory, continuity=None):
         self.s = settings
         self.db = db
         self.llm = llm
         self.memory = memory
+        self.continuity = continuity
 
     def task_cfg(self, task_type: str) -> TaskCfg:
         if task_type not in self.s.tasks.tasks:
@@ -89,6 +90,7 @@ class DeliberationEngine:
         similar = await self.memory.similar(task["prompt"], k=5)
         system = P.SYSTEM.format(
             persona=persona.to_prompt() if persona else "PERSONA: (not set yet)",
+            continuity=self.continuity.to_prompt() if self.continuity else "",
             memory=P.fmt_memory(similar),
         ).strip()
         rubric = P.fmt_rubric(self.s.tasks.rubric)

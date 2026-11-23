@@ -39,6 +39,26 @@ tasks:
     judge: judge
     threshold: 7.5
     max_loops: 2
+  plan:
+    description: "A week of post concepts (pick several to schedule)"
+    sensitivity: public
+    n_options: 7
+    proposers: ["main@0.9:strategist", "alt@0.9:audience", "judge@1.0:contrarian"]
+    critique: true
+    synthesizer: "main@0.3:strategist"
+    judge: judge
+    threshold: 7.0
+    max_loops: 1
+  reply:
+    description: "Reply to a follower comment"
+    sensitivity: private
+    n_options: 1
+    proposers: ["main@0.7:writer"]
+    critique: false
+    synthesizer: null
+    judge: null
+    threshold: 0
+    max_loops: 0
   quick:
     description: "Fast single pass, no deliberation"
     sensitivity: private

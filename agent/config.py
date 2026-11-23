@@ -57,6 +57,54 @@ class ComfyCfg(BaseModel):
     free_on_think: bool = True
 
 
+class InstagramCfg(BaseModel):
+    enabled: bool = False
+    login: Literal["facebook", "instagram"] = "facebook"
+    api_version: str = "v27.0"
+    user_id_env: str = "IG_USER_ID"
+    token_env: str = "IG_ACCESS_TOKEN"
+    public_media_base_url: str | None = None
+    share_to_feed: bool = True
+    poll_interval_s: float = 30
+    poll_max_s: float = 900
+    insights_metrics: list[str] = Field(default_factory=lambda: [
+        "views", "reach", "likes", "comments", "shares", "saved", "total_interactions", "ig_reels_avg_watch_time"])
+
+
+class TikTokCfg(BaseModel):
+    enabled: bool = False
+    mode: Literal["inbox", "direct"] = "inbox"
+    client_key_env: str = "TIKTOK_CLIENT_KEY"
+    client_secret_env: str = "TIKTOK_CLIENT_SECRET"
+    redirect_uri: str = ""
+    authorize_url: str = "https://www.tiktok.com/v2/auth/authorize/"
+    scopes: list[str] = Field(default_factory=lambda: ["user.info.basic", "video.upload", "video.publish", "video.list"])
+    privacy_level: str = "SELF_ONLY"
+    poll_interval_s: float = 15
+    poll_max_s: float = 900
+
+
+class PublishingCfg(BaseModel):
+    ai_label: bool = True
+    caption_footer: str = ""
+    posting_times: list[str] = Field(default_factory=lambda: ["12:15", "18:40"])
+    instagram: InstagramCfg = Field(default_factory=InstagramCfg)
+    tiktok: TikTokCfg = Field(default_factory=TikTokCfg)
+
+
+class AutonomyCfg(BaseModel):
+    publish: Literal["ask", "auto"] = "ask"
+    comment_replies: Literal["ask", "auto_low_risk"] = "ask"
+
+
+class AutopilotCfg(BaseModel):
+    enabled: bool = True
+    tick_s: float = 60
+    comment_poll_min: float = 15
+    comment_window_days: float = 14
+    metric_checkpoints_h: dict[str, float] = Field(default_factory=lambda: {"1h": 1, "24h": 24, "7d": 168})
+
+
 class AgentCfg(BaseModel):
     data_dir: str = "data"
     llama_server: LlamaServerCfg = Field(default_factory=LlamaServerCfg)
@@ -66,6 +114,9 @@ class AgentCfg(BaseModel):
     routing: RoutingCfg = Field(default_factory=RoutingCfg)
     budget: BudgetCfg = Field(default_factory=BudgetCfg)
     comfyui: ComfyCfg = Field(default_factory=ComfyCfg)
+    publishing: PublishingCfg = Field(default_factory=PublishingCfg)
+    autonomy: AutonomyCfg = Field(default_factory=AutonomyCfg)
+    autopilot: AutopilotCfg = Field(default_factory=AutopilotCfg)
 
 
 class TaskCfg(BaseModel):

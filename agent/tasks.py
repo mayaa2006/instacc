@@ -106,6 +106,22 @@ class TaskService:
         await self._emit("approved", task)
         return task
 
+    async def approve_many(self, tid: str, indices: list[int]) -> dict:
+        """Approve several options at once (e.g. a week plan). `chosen` becomes a list."""
+        task = self._get_pending(tid)
+        options = (task["result"] or {}).get("options", [])
+        idx = sorted(set(indices))
+        if not idx or any(not 0 <= i < len(options) for i in idx):
+            raise TaskError("pick at least one existing option")
+        chosen = [options[i] for i in idx]
+        self.db.task_update(tid, status="approved", chosen=chosen)
+        for o in chosen:
+            await self.memory.remember(task["type"], o["text"],
+                                       {"task_id": tid, "prompt": task["prompt"], "score": o.get("score")})
+        task = self.db.task_get(tid)
+        await self._emit("approved", task)
+        return task
+
     async def reject(self, tid: str) -> dict:
         self._get_pending(tid)
         self.db.task_update(tid, status="rejected")
@@ -116,5 +132,7 @@ class TaskService:
     def rethink(self, tid: str, note: str | None = None, source: str | None = None) -> str:
         task = self._get_pending(tid)
         merged = "; ".join(x for x in (task.get("note"), note) if x) or None
+        if (task.get("source") or "").startswith("post:"):
+            source = task["source"]  # keep the rethought caption attached to its post
         self.db.task_update(tid, status="superseded")
         return self.create(task["type"], task["prompt"], note=merged, parent_id=tid, source=source)

@@ -4,18 +4,22 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hmac
+import html
+import time
 import logging
 from pathlib import Path
 from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from agent.config import Settings
 from agent.container import Container
+from agent.content.posts import PostError
 from agent.evals.harness import EvalError
+from agent.publish.base import PublishError
 from agent.tasks import AUTO, TaskError
 
 log = logging.getLogger(__name__)
@@ -51,6 +55,62 @@ class Vote(BaseModel):
     choice: Literal["left", "right", "tie"]
 
 
+class ApproveMany(BaseModel):
+    indices: list[int]
+    series_id: str | None = None
+
+
+class NewPost(BaseModel):
+    concept: str
+    series_id: str | None = None
+    scheduled_at: float | None = None
+    platforms: list[str] | None = None
+
+
+class Note(BaseModel):
+    note: str | None = None
+
+
+class Rendered(BaseModel):
+    media_path: str
+
+
+class RenderFailed(BaseModel):
+    error: str
+
+
+class Reschedule(BaseModel):
+    scheduled_at: float
+
+
+class ReplyEdit(BaseModel):
+    text: str | None = None
+
+
+class NewSeries(BaseModel):
+    name: str
+    description: str = ""
+
+
+class LedgerEntry(BaseModel):
+    kind: str
+    key: str
+    value: str
+    series_id: str | None = None
+    status: str = "active"
+
+
+class LedgerPatch(BaseModel):
+    kind: str | None = None
+    key: str | None = None
+    value: str | None = None
+    status: str | None = None
+
+
+class Code(BaseModel):
+    code: str
+
+
 class GpuMode(BaseModel):
     mode: Literal["think", "render"]
     holder: str | None = None
@@ -83,7 +143,8 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         token = settings.secrets.api_token
         if not token:
             return
-        got = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        got = request.headers.get("authorization", "").removeprefix("Bearer ").strip() or \
+            request.query_params.get("token", "")
         if not hmac.compare_digest(got, token):
             raise HTTPException(401, "bad or missing token")
 
@@ -183,6 +244,16 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         except TaskError as e:
             raise HTTPException(409, str(e))
 
+    @api.post("/tasks/{tid}/approve-many")
+    async def approve_many(tid: str, body: ApproveMany, request: Request):
+        cont = c(request)
+        if body.series_id:
+            cont.db.kv_set(f"plan_series:{tid}", body.series_id)
+        try:
+            return await cont.tasks.approve_many(tid, body.indices)
+        except TaskError as e:
+            raise HTTPException(409, str(e))
+
     @api.post("/tasks/{tid}/reject")
     async def reject(tid: str, request: Request):
         try:
@@ -195,6 +266,182 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         try:
             return {"id": c(request).tasks.rethink(tid, body.note, source="api")}
         except TaskError as e:
+            raise HTTPException(409, str(e))
+
+    # ---- posts / calendar ------------------------------------------------
+    def post_call(fn, *a):
+        try:
+            return fn(*a)
+        except PostError as e:
+            raise HTTPException(409, str(e))
+
+    @api.get("/posts")
+    def list_posts(request: Request, status: str | None = None, active: bool = False):
+        return c(request).posts.list(status=status, active_only=active)
+
+    @api.post("/posts")
+    async def create_post(body: NewPost, request: Request):
+        return post_call(lambda: c(request).posts.create(body.concept, series_id=body.series_id,
+                                                         scheduled_at=body.scheduled_at, platforms=body.platforms))
+
+    @api.get("/posts/{pid}")
+    def get_post(pid: str, request: Request):
+        return post_call(c(request).posts.get, pid)
+
+    @api.get("/posts/{pid}/media")
+    def post_media(pid: str, request: Request):
+        p = post_call(c(request).posts.get, pid)
+        if not p.get("media_path") or not Path(p["media_path"]).exists():
+            raise HTTPException(404, "no media yet")
+        return FileResponse(p["media_path"])
+
+    @api.post("/posts/{pid}/script/approve")
+    async def approve_script(pid: str, request: Request):
+        try:
+            return await c(request).posts.approve_script(pid)
+        except PostError as e:
+            raise HTTPException(409, str(e))
+
+    @api.post("/posts/{pid}/script/redo")
+    async def redo_script(pid: str, body: Note, request: Request):
+        post_call(c(request).posts.redo_script, pid, body.note)
+        return {"ok": True}
+
+    @api.post("/posts/{pid}/reschedule")
+    def reschedule(pid: str, body: Reschedule, request: Request):
+        return post_call(c(request).posts.reschedule, pid, body.scheduled_at)
+
+    @api.post("/posts/{pid}/drop")
+    def drop_post(pid: str, request: Request):
+        return post_call(c(request).posts.drop, pid)
+
+    @api.post("/posts/{pid}/publish-now")
+    async def publish_now(pid: str, request: Request):
+        cont = c(request)
+        p = post_call(cont.posts.get, pid)
+        if p["status"] != "scheduled":
+            raise HTTPException(409, f"post is {p['status']}")
+        cont.posts._update(pid, scheduled_at=time.time())
+        try:
+            return await cont.posts.publish(pid)
+        except PostError as e:
+            raise HTTPException(409, str(e))
+
+    # video side
+    @api.get("/render-queue")
+    def render_queue(request: Request):
+        return c(request).posts.render_queue()
+
+    @api.post("/posts/{pid}/claim")
+    def claim(pid: str, request: Request):
+        return post_call(c(request).posts.claim, pid)
+
+    @api.post("/posts/{pid}/rendered")
+    async def rendered(pid: str, body: Rendered, request: Request):
+        try:
+            return await c(request).posts.rendered(pid, body.media_path)
+        except PostError as e:
+            raise HTTPException(409, str(e))
+
+    @api.post("/posts/{pid}/render-failed")
+    def render_failed(pid: str, body: RenderFailed, request: Request):
+        return post_call(c(request).posts.render_failed, pid, body.error)
+
+    # ---- continuity -----------------------------------------------------
+    @api.get("/series")
+    def list_series(request: Request):
+        return c(request).continuity.list_series()
+
+    @api.post("/series")
+    def new_series(body: NewSeries, request: Request):
+        return {"id": c(request).continuity.create_series(body.name, body.description)}
+
+    @api.get("/continuity")
+    def list_ledger(request: Request, series_id: str | None = None, status: str | None = None):
+        return c(request).continuity.entries(series_id=series_id, status=status)
+
+    @api.post("/continuity")
+    def add_ledger(body: LedgerEntry, request: Request):
+        try:
+            return {"id": c(request).continuity.add(body.kind, body.key, body.value, series_id=body.series_id,
+                                                    status=body.status, source="manual")}
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @api.patch("/continuity/{eid}")
+    def patch_ledger(eid: int, body: LedgerPatch, request: Request):
+        try:
+            return c(request).continuity.update(eid, **body.model_dump(exclude_none=True))
+        except (ValueError, KeyError) as e:
+            raise HTTPException(422, str(e))
+
+    @api.post("/continuity/{eid}/confirm")
+    def confirm_ledger(eid: int, request: Request):
+        try:
+            return c(request).continuity.confirm(eid)
+        except KeyError:
+            raise HTTPException(404, "not found")
+
+    # ---- comments -------------------------------------------------------
+    @api.get("/comments")
+    def list_comments(request: Request, status: str | None = None):
+        return c(request).comments.list(status=status)
+
+    @api.post("/comments/{cid}/send")
+    async def send_comment(cid: int, body: ReplyEdit, request: Request):
+        try:
+            return await c(request).comments.send(cid, body.text)
+        except (ValueError, KeyError) as e:
+            raise HTTPException(409, str(e))
+
+    @api.post("/comments/{cid}/ignore")
+    def ignore_comment(cid: int, request: Request):
+        return c(request).comments.ignore(cid)
+
+    @api.post("/comments/poll")
+    async def poll_comments(request: Request):
+        cont = c(request)
+        cont.autopilot._last_comments = 0
+        return await cont.autopilot.tick()
+
+    # ---- analytics ------------------------------------------------------
+    @api.get("/analytics")
+    def analytics(request: Request, checkpoint: str = "24h"):
+        a = c(request).analytics
+        return {"posts": a.table(checkpoint), "calibration": a.calibration(checkpoint)}
+
+    # ---- accounts -------------------------------------------------------
+    @api.get("/accounts")
+    def accounts(request: Request):
+        cont = c(request)
+        pub = settings.agent.publishing
+        out = {"instagram": {"enabled": pub.instagram.enabled, "login": pub.instagram.login},
+               "tiktok": {"enabled": pub.tiktok.enabled, "mode": pub.tiktok.mode},
+               "autopilot": cont.autopilot.status()}
+        if "instagram" in cont.publishers:
+            out["instagram"]["connected"] = cont.publishers["instagram"].configured()
+        if "tiktok" in cont.publishers:
+            out["tiktok"].update(cont.publishers["tiktok"].token_status())
+        return out
+
+    @api.get("/accounts/tiktok/connect")
+    def tiktok_connect(request: Request):
+        tt = c(request).publishers.get("tiktok")
+        if tt is None:
+            raise HTTPException(409, "enable publishing.tiktok in config/agent.yaml first")
+        try:
+            return {"url": tt.authorize_url()}
+        except PublishError as e:
+            raise HTTPException(409, str(e))
+
+    @api.post("/accounts/tiktok/code")
+    async def tiktok_code(body: Code, request: Request):
+        tt = c(request).publishers.get("tiktok")
+        if tt is None:
+            raise HTTPException(409, "TikTok not enabled")
+        try:
+            return await tt.exchange_code(body.code.strip())
+        except PublishError as e:
             raise HTTPException(409, str(e))
 
     # ---- evals ----------------------------------------------------------
@@ -245,4 +492,16 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
         return await c(request).gpu.set_mode(body.mode, holder=body.holder, ttl_s=body.ttl_s)
 
     app.include_router(api)
+
+    @app.get("/auth/tiktok/callback")
+    async def tiktok_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+        """Browser redirect target after TikTok login (protected by the OAuth state value)."""
+        tt = c(request).publishers.get("tiktok")
+        if error or tt is None or not code:
+            return HTMLResponse(f"<p>TikTok connection failed: {html.escape(error or 'not enabled')}</p>", 400)
+        try:
+            await tt.exchange_code(code, state)
+        except PublishError as e:
+            return HTMLResponse(f"<p>TikTok connection failed: {html.escape(str(e))}</p>", 400)
+        return HTMLResponse("<p>TikTok connected. You can close this tab.</p>")
     return app

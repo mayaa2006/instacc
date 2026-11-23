@@ -58,3 +58,27 @@ def test_eval_api(settings, transport):
         assert client.post("/api/evals/vote", json={"token": pair["token"], "choice": "tie"}).json()["ok"]
         assert client.post("/api/evals/vote", json={"token": pair["token"], "choice": "tie"}).status_code == 409
         assert client.post("/api/evals", json={"variants": ["bad"]}).status_code == 422
+
+
+def test_posts_and_render_queue_api(settings, transport, tmp_path):
+    settings.agent.llama_server.manage_processes = False
+    settings.agent.autopilot.enabled = False
+    with TestClient(create_app(settings, transport=transport, start_bot=False)) as client:
+        pid = client.post("/api/posts", json={"concept": "toast fail"}).json()["id"]
+        deadline = time.time() + 5
+        while client.get(f"/api/posts/{pid}").json()["status"] != "script_review" and time.time() < deadline:
+            time.sleep(0.05)
+        assert client.post(f"/api/posts/{pid}/script/approve").json()["status"] == "render_queued"
+        assert [p["id"] for p in client.get("/api/render-queue").json()] == [pid]
+        assert client.post(f"/api/posts/{pid}/claim").json()["status"] == "rendering"
+        media = tmp_path / "x.mp4"
+        media.write_bytes(b"0")
+        assert client.post(f"/api/posts/{pid}/rendered", json={"media_path": str(media)}).json()["status"] == "captioning"
+        assert client.get(f"/api/posts/{pid}/media").status_code == 200
+        assert client.post(f"/api/posts/{pid}/rendered", json={"media_path": "/nope.mp4"}).status_code == 409
+        assert client.post("/api/continuity", json={"kind": "outfit", "key": "k", "value": "v"}).status_code == 200
+        assert client.post("/api/continuity", json={"kind": "bad", "key": "k", "value": "v"}).status_code == 422
+        assert client.get("/api/analytics").json()["calibration"]["n"] == 0
+        acc = client.get("/api/accounts").json()
+        assert acc["instagram"]["enabled"] is False
+        assert client.get("/api/accounts/tiktok/connect").status_code == 409

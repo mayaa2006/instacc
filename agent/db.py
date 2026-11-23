@@ -103,6 +103,77 @@ CREATE TABLE IF NOT EXISTS eval_votes (
   created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_votes_run ON eval_votes(run_id);
+CREATE TABLE IF NOT EXISTS series (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS continuity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  series_id TEXT,                 -- NULL = applies to the whole persona
+  kind TEXT NOT NULL,             -- outfit|location|prop|storyline|joke|fact|lighting|relationship
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',   -- proposed|active|retired
+  source TEXT,
+  last_used_post TEXT,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cont_series ON continuity(series_id, status);
+CREATE TABLE IF NOT EXISTS posts (
+  id TEXT PRIMARY KEY,
+  series_id TEXT,
+  status TEXT NOT NULL,
+  concept TEXT NOT NULL,
+  idea_task_id TEXT,
+  idea_score REAL,
+  platforms TEXT NOT NULL,
+  scheduled_at REAL,
+  video_job TEXT,
+  media_path TEXT,
+  caption TEXT,
+  hashtags TEXT,
+  caption_task_id TEXT,
+  ai_label INTEGER NOT NULL DEFAULT 1,
+  published TEXT,
+  error TEXT,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform TEXT NOT NULL,
+  post_id TEXT,
+  media_id TEXT,
+  comment_id TEXT NOT NULL,
+  parent_id TEXT,
+  username TEXT,
+  text TEXT NOT NULL,
+  posted_at REAL,
+  category TEXT,
+  risk TEXT,
+  draft TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  reply_id TEXT,
+  error TEXT,
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL,
+  UNIQUE(platform, comment_id)
+);
+CREATE INDEX IF NOT EXISTS idx_comments_status ON comments(status);
+CREATE TABLE IF NOT EXISTS metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  checkpoint TEXT NOT NULL,       -- 1h|24h|7d|manual
+  collected_at REAL NOT NULL,
+  data TEXT NOT NULL,
+  UNIQUE(post_id, platform, checkpoint)
+);
 CREATE TABLE IF NOT EXISTS kv (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -242,6 +313,12 @@ class DB:
             "SELECT COALESCE(SUM(cost_usd),0) AS s FROM llm_usage WHERE kind='cloud' AND ts>=?", (start,)
         )
         return float(rows[0]["s"])
+
+    def memory_update_meta(self, item_id: int, patch: dict) -> None:
+        rows = self.query("SELECT meta FROM memory_items WHERE id=?", (item_id,))
+        if rows:
+            meta = (json.loads(rows[0]["meta"]) if rows[0]["meta"] else {}) | patch
+            self.execute("UPDATE memory_items SET meta=? WHERE id=?", (json.dumps(meta), item_id))
 
     # ---- memory ---------------------------------------------------------
     def memory_add(self, kind: str, text: str, meta: dict | None = None, embedding: list[float] | None = None) -> int:

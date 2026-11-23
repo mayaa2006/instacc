@@ -8,6 +8,8 @@ Write in plain language. Be specific and concrete, never generic.
 
 {persona}
 
+{continuity}
+
 {memory}"""
 
 PROPOSER = """ROLE: {role}
@@ -78,5 +80,8 @@ def fmt_memory(similar: list[dict]) -> str:
     if not similar:
         return ""
     lines = ["PREVIOUSLY APPROVED CONTENT (match this quality; do not repeat it):"]
-    lines += [f"- [{m['kind']}] {m['text']}" for m in similar]
+    for m in similar:
+        perf = (m.get("meta") or {}).get("perf")
+        tag = f" (real result: {perf})" if perf else ""
+        lines.append(f"- [{m['kind']}]{tag} {m['text']}")
     return "\n".join(lines)

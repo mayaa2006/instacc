@@ -103,3 +103,57 @@ The report shows win rate, W/L/T, head-to-head, cost and time per case, filterab
 **Trust your own votes over the LLM judge's.** Drop any stage whose ablation doesn't lose.
 
 A full run of 30 cases × 3 variants takes hours on the 3090. Run it in think mode, e.g. with `limit` 10 first.
+
+## Publishing (Phase 3)
+Nothing is posted until you enable a platform in `config/agent.yaml` → `publishing`, and even then
+every post needs your caption approval (`autonomy.publish: ask`).
+
+### Instagram (recommended: Facebook Login)
+1. Switch the Instagram account to **Professional** and link it to a Facebook Page.
+2. At developers.facebook.com create an app and add **Instagram** (Facebook Login for Business).
+   Request `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments` and
+   `instagram_manage_insights`. App Review is needed before it works for real.
+3. In Business Settings, create a **System User**, give it the Page + Instagram account and the app,
+   and generate a token. System User tokens don't expire. Put it in `.env` as `IG_ACCESS_TOKEN`, and
+   your Instagram business account ID as `IG_USER_ID`.
+4. Set `publishing.instagram.enabled: true`.
+
+Why Facebook Login: only it supports uploading the video file straight from your PC. With
+`login: instagram` (Business Login for Instagram) Meta must download the video from a **public URL**,
+so you'd need to host the files somewhere (`public_media_base_url`).
+The AI label is set with the official `is_ai_generated` flag.
+The API allows 100 posts per 24 h.
+
+### TikTok
+1. At developers.tiktok.com create an app, add **Content Posting API** and **Login Kit**, and request
+   `video.upload`, `video.publish`, `video.list` and `user.info.basic`.
+2. Register a redirect URI and copy it to `publishing.tiktok.redirect_uri`. Put the client key/secret
+   in `.env`.
+   - If the URI points at this agent (`…/auth/tiktok/callback`), connecting is one click.
+   - If it points anywhere else, copy the `code=` value from the address bar after logging in and paste
+     it into Accounts.
+3. Set `publishing.tiktok.enabled: true`, then go to System → Accounts → **Connect TikTok**.
+   The agent refreshes the 2-hour access token itself. The refresh token lasts 180 days and rotates.
+
+Until TikTok audits your app, direct posts are **private only**. That's why the default is
+`mode: inbox`: the video lands in your TikTok drafts with the AI label off, so you add the caption
+and the AI-generated label and post from the app. After the audit, set `mode: direct` and
+`privacy_level: PUBLIC_TO_EVERYONE`. The `is_aigc` label is then set automatically.
+
+TikTok's API doesn't expose comments, so only Instagram comments are triaged.
+
+### Comments
+- Every 15 min (`autopilot.comment_poll_min`) new Instagram comments are pulled for posts from the
+  last 14 days. Spam, hostile comments and ones that need no answer are ignored. The rest get a
+  drafted reply sent to Telegram (✅ / ✏️ / 🙈).
+- Comments are untrusted text. They're never treated as instructions. Replies containing links,
+  contact handles or similar are flagged high risk, as are comments containing injection or
+  credential phrases.
+- With `autonomy.comment_replies: auto_low_risk`, only low-risk praise is answered without you.
+
+### Analytics
+- Metrics are pulled 1 h, 24 h and 7 d after each post.
+- The Analytics tab ranks posts and shows whether the judge's scores predicted views and engagement,
+  using rank correlation. It needs 8+ posts before giving a verdict.
+- Results are written back into memory ("top 20%, 12k views"), so future prompts imitate what
+  actually worked.

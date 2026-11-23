@@ -79,3 +79,49 @@ routing:
 
 budget:
   monthly_usd: 20.0
+
+# ---------------------------------------------------------------------------
+# Publishing (official APIs only). Fill credentials in .env, then enable.
+# ---------------------------------------------------------------------------
+publishing:
+  ai_label: true                 # sets Instagram is_ai_generated / TikTok is_aigc
+  caption_footer: ""             # optional text appended to every caption
+  posting_times: ["12:15", "18:40"]   # local PC time; new posts fill the next free slots
+  instagram:
+    enabled: false
+    # facebook: Facebook Login for Business (graph.facebook.com). Supports uploading local files. Recommended.
+    # instagram: Business Login for Instagram (graph.instagram.com). Needs the video at a PUBLIC URL.
+    login: facebook
+    api_version: v27.0
+    user_id_env: IG_USER_ID
+    token_env: IG_ACCESS_TOKEN
+    public_media_base_url: null  # only for login: instagram, e.g. https://media.example.com/
+    share_to_feed: true
+    poll_interval_s: 30
+    poll_max_s: 900
+    insights_metrics: [views, reach, likes, comments, shares, saved, total_interactions, ig_reels_avg_watch_time]
+  tiktok:
+    enabled: false
+    # inbox: video lands in your TikTok drafts; you tap Post in the app (works before app audit).
+    # direct: posts directly. Unaudited apps can only post privately.
+    mode: inbox
+    client_key_env: TIKTOK_CLIENT_KEY
+    client_secret_env: TIKTOK_CLIENT_SECRET
+    redirect_uri: ""             # must exactly match the redirect URI registered in your TikTok app
+    authorize_url: "https://www.tiktok.com/v2/auth/authorize/"
+    scopes: [user.info.basic, video.upload, video.publish, video.list]
+    privacy_level: SELF_ONLY     # change to PUBLIC_TO_EVERYONE after your app passes audit
+    poll_interval_s: 15
+    poll_max_s: 900
+
+# What the agent may do without asking.
+autonomy:
+  publish: ask                   # ask: every post needs your tap | auto: approved captions post on schedule anyway
+  comment_replies: ask           # ask | auto_low_risk: low-risk praise gets the drafted reply sent automatically
+
+autopilot:
+  enabled: true
+  tick_s: 60
+  comment_poll_min: 15
+  comment_window_days: 14
+  metric_checkpoints_h: {1h: 1, 24h: 24, 7d: 168}
