@@ -44,9 +44,9 @@ roles:
 creative_constraints:
   - "Start from one concrete sensory detail (a sound, a texture, a smell)."
   - "Make it a micro-story with a twist in the last second."
-  - "Use a recognizable short-video format (POV, rating things, 'things I stopped doing', before/after) but subvert it."
+  - "Use a recognizable short-video format (talking to camera, POV hands, get-ready-with-me, before/after) but subvert it."
   - "Build it around a single on-screen text line that does all the work."
-  - "Write it from the point of view of an object in the scene."
+  - "Film it from a real but unusual phone position: propped inside a cupboard, on the floor, leaning on the fridge door."
   - "Lean into self-deprecating failure: the joke is that it goes wrong."
   - "Make the audience the main character (second person, 'you')."
   - "Tie it to a specific time: 7am, 2am, Sunday afternoon, the first cold day."
@@ -144,3 +144,4 @@ rubric:
   - "Novelty: is it different from the persona's recent and approved content?"
   - "Audience resonance: will the target audience feel something and engage?"
   - "Platform fit: works on Instagram Reels and TikTok, no policy risk."
+  - "Filmable and real: one person could film it alone with one phone in a real place, and it would look like a genuine phone video, not a production."

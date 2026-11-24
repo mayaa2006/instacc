@@ -9,6 +9,8 @@ Be specific and concrete, never generic.
 
 {persona}
 
+{style}
+
 {continuity}
 
 {memory}"""
@@ -94,3 +96,12 @@ def fmt_taken(options: list[dict], limit: int = 25) -> str:
     lines = "\n".join(f"- {o['text'][:140]}" for o in options[:limit])
     return ("\nANGLES ALREADY TAKEN BY TEAMMATES (do NOT reuse these ideas, formats or punchlines; "
             "find genuinely different ones):\n" + lines + "\n")
+
+
+def fmt_style(style) -> str:
+    if not style:
+        return ""
+    lines = [f"HOW VIDEOS ARE MADE ({style.name}): {' '.join(style.brief.split())}"]
+    if style.formats:
+        lines.append("Formats that work when filmed alone: " + "; ".join(style.formats) + ".")
+    return "\n".join(lines)

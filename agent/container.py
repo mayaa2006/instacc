@@ -67,7 +67,8 @@ class Container:
             publishers["instagram"] = InstagramClient(pub.instagram, pub.ai_label, publish_transport, **kw)
         if pub.tiktok.enabled:
             publishers["tiktok"] = TikTokClient(pub.tiktok, db, pub.ai_label, publish_transport, **kw)
-        producer = Producer(db, llm, memory, continuity)
+        producer = Producer(db, llm, memory, continuity, style=settings.style,
+                            style_id=settings.style_file.active if settings.style_file else None)
         posts = PostService(settings, db, tasks, producer, continuity, publishers)
         comments = CommentService(settings, db, llm, memory, publishers)
         analytics = AnalyticsService(settings, db, publishers)

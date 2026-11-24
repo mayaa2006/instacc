@@ -1,0 +1,104 @@
+# Filming style: how every video should look and be "shot".
+# Goal: indistinguishable from a real person filming themselves with ONE phone. Edit freely.
+active: phone_ugc
+
+styles:
+  phone_ugc:
+    name: "Real phone video (one person, one phone)"
+    # One paragraph the idea/plan/hook models read, so concepts are filmable from the start.
+    brief: >-
+      Every video must look like it was filmed by the persona herself on one smartphone, like real
+      TikTok/Reels videos: vertical, natural light, a bit of handheld shake, jump cuts between takes,
+      talking to the front camera, or her hands seen from the back camera. No film crew, no second
+      camera operator, no drone, no cinematic moves, no studio lighting. If an idea needs someone else
+      holding the camera, it isn't allowed.
+
+    # How the phone can be held. Each shot must use exactly one of these ids.
+    setups:
+      selfie:
+        label: "Selfie"
+        description: "Front camera at arm's length, she talks or reacts to the lens; one hand holds the phone."
+        prompt: "selfie video, front-facing smartphone camera held at arm's length, she looks into the lens, slight handheld wobble"
+        hands_free: 1
+        face_visible: true
+      propped:
+        label: "Propped"
+        description: "Phone leaned on something (shelf, counter, mug, tripod), static wide-ish frame; both hands free."
+        prompt: "static smartphone video, phone propped on a counter at chest height, slightly crooked framing, wide angle phone lens"
+        hands_free: 2
+        face_visible: true
+      pov:
+        label: "Point of view"
+        description: "Back camera held at chest/eye height showing what she sees: her hands, objects, the room. Her face is NOT visible."
+        prompt: "first-person POV smartphone video, back camera, her hands in frame, handheld, natural motion"
+        hands_free: 1
+        face_visible: false
+      mirror:
+        label: "Mirror"
+        description: "Filming herself in a mirror with the back camera; phone visible in her hand."
+        prompt: "mirror video, she holds a smartphone filming her reflection, phone visible in hand, handheld"
+        hands_free: 1
+        face_visible: true
+      screen:
+        label: "Screen / text card"
+        description: "Close-up of a phone or laptop screen, or a plain background for on-screen text."
+        prompt: "close-up smartphone video of a screen, handheld, slight moire and glare"
+        hands_free: 1
+        face_visible: false
+
+    # Length limits (the video model makes ~5 s clips; real short videos are 10-30 s).
+    timing: {min_shots: 2, max_shots: 6, min_shot_s: 2, max_shot_s: 5, min_total_s: 10, max_total_s: 30}
+
+    # Appended to every shot's render prompt for the video model.
+    look: >-
+      shot on a smartphone, vertical 9:16 video, natural available light, auto exposure, realistic skin texture,
+      casual amateur framing, everyday real location, unpolished, authentic social media video
+
+    # The video model is told to avoid all of this.
+    negative_prompt: >-
+      cinematic, film look, color graded, anamorphic, shallow depth of field, heavy bokeh, studio lighting,
+      softbox, rim light, professional camera, gimbal, steadicam, dolly, crane, drone, aerial, tracking shot,
+      slow motion, perfect skin, airbrushed, plastic skin, 3d render, cgi, cartoon, illustration, watermark,
+      text artifacts, extra fingers, deformed hands, multiple people unless stated
+
+    # Words in a shot that mean "this couldn't be filmed by one person with one phone".
+    banned_terms:
+      - drone
+      - aerial
+      - crane
+      - dolly
+      - steadicam
+      - gimbal
+      - tracking shot
+      - "camera follows her"
+      - "camera circles"
+      - "orbit"
+      - "establishing shot"
+      - cinematic
+      - "rack focus"
+      - "over-the-shoulder"
+      - "wide shot of her walking"
+      - "slow motion"
+      - "time-lapse of the city"
+      - "split screen"
+
+    # Formats that real creators film alone. Ideas should come from these.
+    formats:
+      - "talking to the front camera (storytime, rant, confession, hot take)"
+      - "get ready with me / do this with me, phone propped up"
+      - "day-in-the-life jump cuts, mostly POV with a few selfie clips"
+      - "POV hands doing the thing (cooking, drawing, unboxing, pouring)"
+      - "reaction to something on her screen or in the room"
+      - "before/after with a jump cut"
+      - "on-screen text story over simple POV footage"
+      - "mirror check / outfit video"
+      - "trying something and failing, filmed propped up so both hands are free"
+
+    rules:
+      - "Every shot says how the phone is held, using one of the setups."
+      - "Only one camera exists. Changing setup between shots is a jump cut: she stopped and moved the phone."
+      - "In a selfie shot she has one hand free; anything needing two hands needs the propped setup."
+      - "In a POV shot her face is not visible; only her hands, arms and what she looks at."
+      - "Nobody else holds the camera. No crew, no friend filming, unless the persona has a filming friend."
+      - "Keep it simple and physical: everyday actions, real rooms, real light. No visual effects."
+      - "Dialogue is short and spoken to the camera like a real person, not a script."

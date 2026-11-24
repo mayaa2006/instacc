@@ -35,12 +35,16 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   stop during renders.
 
 ## Dev commands
-- Tests: `python\python.exe -m pytest -q` (67 tests; needs `pip install pytest pytest-asyncio`).
+- Tests: `python\python.exe -m pytest -q` (83 tests; needs `pip install pytest pytest-asyncio`).
 - Run: `start-agent.bat`. It listens on the network by default, prints a phone QR code and opens the PC
   browser signed in. The app is at `/`, the classic dashboard at `/classic`. Phones pair by QR
   (`agent/pairing.py`) or Telegram `/app`.
-- Config: `config/agent.yaml` (models, servers, publishing, autonomy) and `config/tasks.yaml`
-  (deliberation per task type).
+- Config:
+  - `config/agent.yaml`: models, servers, publishing, autonomy.
+  - `config/tasks.yaml`: deliberation per task type.
+  - `config/style.yaml`: the filming style. Videos must look like ONE person filmed them on ONE phone; this
+    file holds the phone setups, banned camera terms, look/negative prompt and timing, enforced in
+    `agent/content/realism.py`.
 - **Models are free and local by default** (`slot_profile: local`).
   - `slot_profile: cloud` switches `alt`/`judge` to uncensored OpenRouter models (paid, capped).
   - With one local model, variety comes from role sampling, seeds, creative constraints, sequential

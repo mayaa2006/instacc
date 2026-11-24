@@ -23,6 +23,7 @@ class FakeLLM:
         self.embed_calls: list = []
         self.produce_calls = 0
         self.produce_bad_first = False
+        self.produce_unrealistic = 0   # how many first answers break the one-phone rules
         self.reply_text = "haha thank you, the toast thanks you too"
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -46,16 +47,22 @@ class FakeLLM:
             return httpx.Response(503, text="upstream down")
         if "Did the model REFUSE" in user:
             content = "YES"
-        elif "You are the director" in body["messages"][0]["content"]:
+        elif "You are directing" in body["messages"][0]["content"]:
             self.produce_calls += 1
             if self.produce_bad_first and self.produce_calls == 1:
                 content = '{"title": "x", "shots": []}'
+            elif self.produce_unrealistic and self.produce_calls <= self.produce_unrealistic:
+                content = json.dumps({"title": "Toast", "concept": "x", "shots": [
+                    {"setup": "pov", "duration_s": 4, "camera": "drone shot over Lisbon", "action": "she smiles at the camera"},
+                    {"setup": "", "duration_s": 3, "camera": "wide", "action": "she eats toast"}]})
             else:
                 content = json.dumps({"title": "Toast disaster", "concept": "burnt toast", "continuity": {
                     "outfit": "cream knit sweater", "location": "apartment kitchen", "lighting": "morning sun"},
-                    "shots": [{"duration_s": 4, "camera": "handheld close-up", "action": "toast pops out black",
+                    "shots": [{"setup": "selfie", "duration_s": 5, "camera": "close-up of her face at arm's length",
+                               "camera_motion": "slight handheld shake", "action": "she holds up a burnt piece of toast",
                                "dialogue": "growth."},
-                              {"duration_s": 3, "camera": "medium, static", "action": "she eats it anyway"}],
+                              {"setup": "propped", "duration_s": 5, "camera": "medium, phone on the counter",
+                               "camera_motion": "static", "action": "she eats it anyway with both hands"}],
                     "audio": {"music_mood": "lofi"}})
         elif "Extract continuity facts" in user:
             content = json.dumps({"facts": [{"kind": "outfit", "key": "signature", "value": "cream knit sweater"},

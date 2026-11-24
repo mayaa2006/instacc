@@ -140,6 +140,27 @@ python\python.exe -m pip install pytest pytest-asyncio
 python\python.exe -m pytest
 ```
 
+## Filming style (realistic phone videos)
+`config/style.yaml` decides how every video should look. The default is **"Real phone video (one person,
+one phone)"**.
+
+- **Ideas** are told to use formats one person can film alone: talking to the front camera, POV hands,
+  get-ready-with-me with the phone propped up, and so on.
+- **Shot lists:** every take says how the phone is held:
+  - 🤳 selfie
+  - 📱 propped up
+  - 👀 her view (POV)
+  - 🪞 mirror
+  - 🖥 screen
+- **Impossible or "cinematic" shots** are fixed automatically or sent back for a rewrite. Examples: a drone
+  shot, her face in a POV shot, both hands busy while holding the phone, a second camera operator. Anything
+  that still looks off shows as ⚠️ on the shot-list card before you approve.
+- **Video prompts:** each take gets a ready-made prompt for the video model with phone-camera wording, plus a
+  "negative prompt" of things to avoid.
+
+To change the style, edit that file. For example: add banned words, change the take lengths, describe a
+filming friend as a new setup, or write a different `brief`.
+
 ## Evals: is the "thinking" worth it? (Phase 2)
 `evals/golden.yaml` has 30 sample requests (hooks, captions, ideas). **Rewrite them for your persona.**
 

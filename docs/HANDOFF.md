@@ -4,6 +4,33 @@ Written at the end of the cloud session that built the agent side, for whoever c
 Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
 
 ## Latest changes (newest first)
+- **Realistic phone-video style.** The user asked for "realistic short-form videos in the style of real videos
+  people might film with one phone camera".
+  - **`config/style.yaml`** (active style `phone_ugc`, editable by the user) holds:
+    - the brief and formats one person can film alone
+    - the phone setups (`selfie`, `propped`, `pov`, `mirror`, `screen`), each with hands-free and
+      face-visible facts
+    - the look tags and the negative prompt
+    - banned camera terms (drone, gimbal, dolly…)
+    - timing limits: 2–6 takes of 2–5 s, 10–30 s total
+  - **Ideas:** deliberation prompts include the style brief and formats, and the rubric has a "Filmable and
+    real" criterion. The object-POV creative constraint was replaced.
+  - **Shot lists** (`agent/content/producer.py`, `agent/content/realism.py`):
+    1. Every shot names its phone `setup`.
+    2. A deterministic checker flags banned moves, a face in a POV shot, two-handed actions in a selfie, other
+       people filming, and timing.
+    3. `auto_repair` fixes the mechanical issues instantly (picks the setup, stretches or shrinks takes).
+    4. Only what's left goes back to the model, with up to 3 rewrites.
+    5. Leftovers are shown as ⚠️ on the shot-list card.
+  - **VideoJob v0.2:** per shot `setup`, `camera_motion` and `render_prompt`; per job `style`,
+    `negative_prompt` and `realism_warnings`. The video side should use `render_prompt` + `negative_prompt`
+    directly. See `docs/INTEGRATION.md`, which also has realism advice for rendering and post-processing.
+  - **App and Telegram:** shot lists show 🤳/📱/👀 setup labels and warnings; lengths read "10-second video".
+  - **Verified:** 83 tests. Live on llama-server (tiny model, CPU), the shot list went from 4 model calls /
+    215 s (rewrites) to **1 call / 32 s**, with timing auto-fixed.
+  - **To verify on the PC:**
+    1. Approve a plan idea and check that the shot-list card gives each shot a sensible setup and no ⚠️.
+    2. Give one job's `render_prompt` + `negative_prompt` to the video side for a test render.
 - **Fix for "slow and nonsensical" output** (user report from the PC, 2026-11-24). The likely causes are fixed
   and there's a diagnostic tool:
   1. **Thinking switched off.** Local calls now send `chat_template_kwargs: {enable_thinking: false}`
@@ -152,7 +179,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 | CI | `.github/workflows/tests.yml` | Ubuntu + Windows. Hasn't run yet: no default branch on GitHub |
 
 ## 3. What was verified, and how
-- **67 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
+- **83 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
   - The fakes check request shapes: headers, `is_ai_generated`/`is_aigc`, chunk ranges and token rotation.
 - **Live run against real `llama-server`, using a tiny Qwen3-0.6B on CPU in the cloud:**
   - the scheduler starts, stops and restarts servers across mode switches

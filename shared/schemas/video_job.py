@@ -1,4 +1,8 @@
-"""VideoJob: the agent -> video pipeline contract. DRAFT v0.1, to be agreed with the video side.
+"""VideoJob: the agent -> video pipeline contract. DRAFT v0.2, to be agreed with the video side.
+
+v0.2 (phone-realism): each shot has `setup` (how the one phone is held: selfie / propped / pov / mirror /
+screen), `camera_motion`, and a ready-to-use `render_prompt`; the job has `style` and `negative_prompt`.
+The video side should feed `render_prompt` + `negative_prompt` to the model as-is.
 
 The agent fills in the creative fields (series, characters, continuity, shots). The video side
 owns `render` (workflow, resolution, steps...) and reports back via `POST /api/posts/{id}/rendered`.
@@ -9,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = "0.1"
+SCHEMA_VERSION = "0.2"
 
 
 class Continuity(BaseModel):
@@ -33,6 +37,9 @@ class Shot(BaseModel):
     on_screen_text: str = ""
     keyframe_prompt: str = Field("", description="still-image prompt for the first frame (I2V keyframe)")
     continue_from_previous: bool = Field(True, description="seed this shot from the previous shot's last frame")
+    setup: str = Field("", description="how the single phone is held; an id from config/style.yaml setups")
+    camera_motion: str = Field("", description="e.g. 'slight handheld shake', 'static', 'she tilts the phone down'")
+    render_prompt: str = Field("", description="final text prompt for the video model (built by the agent)")
 
 
 class Audio(BaseModel):
@@ -55,6 +62,9 @@ class VideoJob(BaseModel):
     aspect: Literal["9:16", "1:1", "4:5", "16:9"] = "9:16"
     seed_policy: Literal["locked_per_series", "locked_per_video", "random"] = "locked_per_series"
     audio: Audio = Field(default_factory=Audio)
+    style: str = Field("", description="filming style id from config/style.yaml, e.g. phone_ugc")
+    negative_prompt: str = Field("", description="what the video model must avoid (built from the style)")
+    realism_warnings: list[str] = Field(default_factory=list, description="issues the agent couldn't fix")
     render: dict = Field(default_factory=dict, description="owned by the video side")
 
     @field_validator("shots")

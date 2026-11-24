@@ -188,6 +188,7 @@ function dayLabel(ts) {
   const diff = Math.round((new Date(d).setHours(0,0,0,0) - t) / 864e5);
   return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff === -1 ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" });
 }
+const SETUP = { selfie: ["🤳", "Selfie"], propped: ["📱", "Propped up"], pov: ["👀", "Her view"], mirror: ["🪞", "Mirror"], screen: ["🖥", "Screen"] };
 const STATUS = { planned: ["Planning", ""], scripting: ["Writing shots", ""], script_review: ["Needs you", "acc"], render_queued: ["Waiting to render", ""],
   rendering: ["Rendering", ""], captioning: ["Writing caption", ""], caption_review: ["Needs you", "acc"], scheduled: ["Ready", "ok"],
   publishing: ["Posting…", ""], published: ["Posted", "ok"], failed: ["Problem", "bad"], dropped: ["Dropped", ""] };
@@ -265,10 +266,11 @@ function card(it) {
   }
   if (k === "script") {
     const j = it.job || {}, c = j.continuity || {};
-    return `<div class="card"><div class="kicker">🎬 <b>Shot list ready</b> · ${(j.shots || []).reduce((a, s) => a + (s.duration_s || 0), 0)}s · posts ${esc(when(it.scheduled_at))}</div>
+    return `<div class="card"><div class="kicker">🎬 <b>Shot list ready</b> · ${Math.round((j.shots || []).reduce((a, s) => a + (s.duration_s || 0), 0))}-second video · posts ${esc(when(it.scheduled_at))}</div>
       <div class="title">${esc(j.title || it.title)}</div>
       ${[c.outfit, c.location, c.lighting].filter(Boolean).length ? `<div class="muted">👗 ${esc([c.outfit, c.location, c.lighting].filter(Boolean).join(" · "))}</div>` : ""}
-      <ol class="shots">${(j.shots || []).map(s => `<li>${esc(s.action)}${s.dialogue ? ` <i>“${esc(s.dialogue)}”</i>` : ""}</li>`).join("")}</ol>
+      <ol class="shots">${(j.shots || []).map(s => `<li>${SETUP[s.setup] ? `<span class="pill" title="${esc(SETUP[s.setup][1])}">${SETUP[s.setup][0]} ${esc(SETUP[s.setup][1])}</span> ` : ""}${esc(s.action)}${s.dialogue ? ` <i>“${esc(s.dialogue)}”</i>` : ""}</li>`).join("")}</ol>
+      ${(j.realism_warnings || []).length ? `<div class="muted" style="color:var(--warn);margin-top:8px">⚠️ Might not look like a real phone video:<br>${j.realism_warnings.map(esc).join("<br>")}</div>` : ""}
       <div class="row"><button class="btn good wide" data-do="render" data-id="${it.id}">Looks good, render it</button>
       <button class="btn" data-do="redo" data-id="${it.id}">Change…</button>
       <button class="btn ghost danger" data-do="drop" data-id="${it.id}">Drop</button></div></div>`;
@@ -394,7 +396,7 @@ async function openPost(id) {
     ${p.error ? `<div class="muted" style="color:var(--bad)">${esc(p.error)}</div>` : ""}
     ${p.media_path ? `<video controls playsinline preload="metadata" src="${mediaUrl(p.id)}"></video>` : ""}
     ${p.caption ? `<label class="l">Caption</label><div style="white-space:pre-wrap">${esc(p.caption)}</div>` : ""}
-    ${j ? `<label class="l">Shots</label><ol class="shots">${j.shots.map(s => `<li>${esc(s.action)}</li>`).join("")}</ol>` : ""}
+    ${j ? `<label class="l">Shots</label><ol class="shots">${j.shots.map(s => `<li>${SETUP[s.setup] ? SETUP[s.setup][0] + " " : ""}${esc(s.action)}</li>`).join("")}</ol>` : ""}
     ${links ? `<label class="l">Posted to</label>${links}` : ""}
     ${editable ? `<label class="l" for="resched">Move to</label><input id="resched" type="datetime-local">
       <div class="row"><button class="btn wide" id="shMove">Move</button>${p.status === "scheduled" ? `<button class="btn primary wide" id="shNow">Post now</button>` : ""}

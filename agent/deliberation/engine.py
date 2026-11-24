@@ -128,6 +128,7 @@ class DeliberationEngine:
         system = P.SYSTEM.format(
             language=language,
             persona=persona.to_prompt() if persona else "PERSONA: (not set yet)",
+            style=P.fmt_style(self.s.style),
             continuity=self.continuity.to_prompt() if self.continuity else "",
             memory=P.fmt_memory(similar),
         ).strip()

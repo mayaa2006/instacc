@@ -166,6 +166,46 @@ class TasksCfg(BaseModel):
     default_type: str = "hooks"   # used by the router's keyword fallback
 
 
+class CameraSetup(BaseModel):
+    label: str
+    description: str
+    prompt: str
+    hands_free: int = 1
+    face_visible: bool = True
+
+
+class Timing(BaseModel):
+    min_shots: int = 2
+    max_shots: int = 6
+    min_shot_s: float = 2
+    max_shot_s: float = 5
+    min_total_s: float = 10
+    max_total_s: float = 30
+
+
+class FilmStyle(BaseModel):
+    name: str
+    timing: Timing = Field(default_factory=Timing)
+    brief: str = ""
+    setups: dict[str, CameraSetup]
+    look: str = ""
+    negative_prompt: str = ""
+    banned_terms: list[str] = Field(default_factory=list)
+    formats: list[str] = Field(default_factory=list)
+    rules: list[str] = Field(default_factory=list)
+
+
+class StyleFile(BaseModel):
+    active: str
+    styles: dict[str, FilmStyle]
+
+    @property
+    def current(self) -> FilmStyle:
+        if self.active not in self.styles:
+            raise ValueError(f"config/style.yaml: active style '{self.active}' is not defined")
+        return self.styles[self.active]
+
+
 class Secrets(BaseModel):
     api_token: str | None = None
     telegram_token: str | None = None
@@ -177,6 +217,11 @@ class Settings(BaseModel):
     agent: AgentCfg
     tasks: TasksCfg
     secrets: Secrets
+    style_file: StyleFile | None = None
+
+    @property
+    def style(self) -> FilmStyle | None:
+        return self.style_file.current if self.style_file else None
 
     @property
     def data_path(self) -> Path:
@@ -250,4 +295,9 @@ def load_settings(root: Path | None = None) -> Settings:
         telegram_token=os.environ.get("TELEGRAM_BOT_TOKEN") or None,
         telegram_allowed_users=allowed,
     )
-    return Settings(root=root, agent=agent, tasks=tasks, secrets=secrets)
+    style_path = cfg_dir / "style.yaml"
+    style_file = None
+    if style_path.exists():
+        style_file = StyleFile.model_validate(yaml.safe_load(style_path.read_text(encoding="utf-8")))
+        style_file.current  # validate the active style exists
+    return Settings(root=root, agent=agent, tasks=tasks, secrets=secrets, style_file=style_file)
