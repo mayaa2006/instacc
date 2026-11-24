@@ -31,6 +31,9 @@ class EndpointCfg(BaseModel):
     uses_gpu: bool = False
     api_key_env: str | None = None
     timeout_s: float = 600
+    # Qwen3 hybrid / other "thinking" models: ask the chat template to skip hidden reasoning. Otherwise a call
+    # spends minutes thinking and can run out of tokens before writing the answer. Harmless for other models.
+    disable_thinking: bool = True
 
 
 class SlotCfg(BaseModel):

@@ -4,6 +4,45 @@ Written at the end of the cloud session that built the agent side, for whoever c
 Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
 
 ## Latest changes (newest first)
+- **Fix for "slow and nonsensical" output** (user report from the PC, 2026-11-24). The likely causes are fixed
+  and there's a diagnostic tool:
+  1. **Thinking switched off.** Local calls now send `chat_template_kwargs: {enable_thinking: false}`
+     (`disable_thinking` per endpoint in `config/agent.yaml`).
+     - Verified on llama-server: with thinking on, a Qwen3 hybrid model used all 120 tokens on hidden
+       reasoning and returned an EMPTY answer. With it off, the answer came back in 57 tokens.
+     - Unclosed `<think>` text is discarded, and empty-and-truncated replies raise a clear error.
+  2. **Sampling is mild.**
+     - No more `presence_penalty`: on llama.cpp it penalizes the JSON quotes and commas, which produces junk.
+     - Role temperatures are 0.7–0.95 (the 4B wildcard went from 1.2 to 0.9).
+     - The test `test_shipped_sampling_is_safe` guards this.
+  3. **Lighter pipelines.**
+     - Critique is off for the local profile, and the judge panel is 1.
+     - `hooks` and `plan` have no extra loop.
+     - Result: `hooks` ≈ 5 calls (was ~9), `plan` ≈ 6 (was ~11).
+  4. **Garbled-output filter.** `agent/deliberation/quality.py` drops options that are in the wrong
+     script (e.g. Chinese), mostly symbols, run-together words, or repetition loops. Dropped options appear in
+     the trace as a `quality` step. Prompts now say "write in plain, natural English" (persona field
+     `language`, default English).
+  5. **Dedupe can't starve the merge step.** It always keeps at least `n_options` of the most distinct
+     ideas, and uses nomic's `clustering:` prefix.
+  6. **`llm-doctor.bat`** (`scripts/llm_doctor.py`). Run it while the agent runs. It checks:
+     - model file sizes
+     - CUDA devices and the GPU layer offload, from `data/logs/main.log`
+     - the chat template
+     - whether the model is a thinking model
+     - tokens/s
+     - text sanity with plain settings vs the configured role settings
+     - risky config
+
+     The report goes to `data/logs/doctor.txt`.
+  - Live check in the cloud (tiny thinking Qwen3 0.6B on CPU): the full `hooks` pipeline went from a timeout
+    of more than 10 min to **101 s with 5 readable options**. 67 tests pass.
+  - **On the PC:** pull, restart `start-agent.bat`, run `llm-doctor.bat`, and show the user the report (or
+    paste `data/logs/doctor.txt`). Fix anything it flags. The usual suspects are:
+    - partial GPU offload, so lower `-c`
+    - no CUDA device, so check the CUDA build and DLLs
+    - the wrong main model: it should be `...Qwen3-30B-A3B-Instruct-2507-abliterated.Q4_K_M.gguf`, about
+      18.6 GB
 - **Phone setup is now one QR scan** (user request: "simpler to install on my phone").
   - `start-agent.bat` now:
     - listens on the network by default (`--host 127.0.0.1` for PC-only)
@@ -113,7 +152,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 | CI | `.github/workflows/tests.yml` | Ubuntu + Windows. Hasn't run yet: no default branch on GitHub |
 
 ## 3. What was verified, and how
-- **62 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
+- **67 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
   - The fakes check request shapes: headers, `is_ai_generated`/`is_aigc`, chunk ranges and token rotation.
 - **Live run against real `llama-server`, using a tiny Qwen3-0.6B on CPU in the cloud:**
   - the scheduler starts, stops and restarts servers across mode switches

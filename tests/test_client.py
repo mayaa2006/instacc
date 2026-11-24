@@ -44,3 +44,31 @@ async def test_budget_exhausted_routes_local(settings, transport, fake):
     first = await c.llm.chat("alt", MSG, sensitivity="public")
     second = await c.llm.chat("alt", MSG, sensitivity="public")
     assert first.kind == "cloud" and second.kind == "local" and second.rerouted == "budget->local"
+
+
+async def test_thinking_disabled_on_local_only(settings, transport, fake):
+    c = build(settings, transport)
+    await c.llm.chat("main", MSG)
+    await c.llm.chat("judge", MSG, sensitivity="public")
+    local, cloud = fake.calls[-2]["body"], fake.calls[-1]["body"]
+    assert local["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "chat_template_kwargs" not in cloud
+
+
+async def test_unclosed_think_and_truncation(settings):
+    import httpx
+    import pytest
+    from agent.models.client import LLMError
+    replies = iter([
+        {"content": "<think>still reasoning about the milk...", "finish_reason": "length"},
+        {"content": "<think>ok</think>  Real answer.", "finish_reason": "stop"},
+    ])
+
+    def handler(r):
+        m = next(replies)
+        return httpx.Response(200, json={"choices": [{"message": {"content": m["content"]},
+                                                      "finish_reason": m["finish_reason"]}], "usage": {}})
+    c = build(settings, httpx.MockTransport(handler))
+    with pytest.raises(LLMError, match="ran out of tokens"):
+        await c.llm.chat("main", MSG)
+    assert (await c.llm.chat("main", MSG)).text == "Real answer."

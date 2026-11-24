@@ -24,6 +24,7 @@ def test_golden_set_valid(settings):
 
 def test_variant_cfgs(settings):
     base = settings.tasks.tasks["idea"]
+    base.critique = True
     slots = set(settings.agent.slots)
     single = variant_cfg("single:judge", base, slots)
     assert single.proposers == ["judge@0.7:writer"] and single.judge is None and single.n_options == 1

@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 
 SYSTEM = """You are part of a content team running a social media persona on Instagram Reels and TikTok.
-Write in plain language. Be specific and concrete, never generic.
+Write in plain, natural {language}: real words, complete sentences, no made-up terms.
+Be specific and concrete, never generic.
 
 {persona}
 

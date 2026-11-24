@@ -35,7 +35,7 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   stop during renders.
 
 ## Dev commands
-- Tests: `python\python.exe -m pytest -q` (62 tests; needs `pip install pytest pytest-asyncio`).
+- Tests: `python\python.exe -m pytest -q` (67 tests; needs `pip install pytest pytest-asyncio`).
 - Run: `start-agent.bat`. It listens on the network by default, prints a phone QR code and opens the PC
   browser signed in. The app is at `/`, the classic dashboard at `/classic`. Phones pair by QR
   (`agent/pairing.py`) or Telegram `/app`.
@@ -47,6 +47,9 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
     anti-repetition, the 4B wildcard, dedupe and the judge panel (all in `config/tasks.yaml`).
 
 ## Code conventions learned the hard way
+- **Local LLM sampling must stay mild:** temperature <= 0.95 and **no presence/repetition penalties**. On
+  llama.cpp, penalties hit JSON punctuation and produce nonsense. Thinking is switched off per request
+  (`chat_template_kwargs`). Diagnose with `llm-doctor.bat`.
 - FastAPI routes that start background work (`asyncio.create_task`, e.g. `tasks.create`,
   `posts.create`, `posts.retry`) **must be `async def`**. Sync routes run in a threadpool with no event loop.
 - Every call to a local LLM goes through `GpuScheduler.lease(server)`. Calls to a server that is

@@ -16,6 +16,7 @@ from agent.config import RoleCfg, Settings, TaskCfg
 from agent.db import DB
 from agent.deliberation import prompts as P
 from agent.deliberation.jsonutil import extract_json, normalize_options
+from agent.deliberation.quality import garbled_reason, persona_expects_latin
 from agent.memory.store import Memory
 from agent.models.client import ChatResult, LLMClient
 
@@ -122,7 +123,10 @@ class DeliberationEngine:
         cfg = cfg or self.task_cfg(task["type"])
         persona = self.memory.persona()
         similar = await self.memory.similar(task["prompt"], k=5)
+        language = (persona.model_extra or {}).get("language", "English") if persona else "English"
+        latin = persona_expects_latin(persona)
         system = P.SYSTEM.format(
+            language=language,
             persona=persona.to_prompt() if persona else "PERSONA: (not set yet)",
             continuity=self.continuity.to_prompt() if self.continuity else "",
             memory=P.fmt_memory(similar),
@@ -181,16 +185,25 @@ class DeliberationEngine:
                     for i, sp in enumerate(specs))))
             pooled: list[dict] = []
             owners: list[int] = []
+            dropped: list[str] = []
             for idx, (_, obj) in enumerate(results):
-                opts = normalize_options(obj) if obj is not None else []
-                pooled += opts
-                owners += [idx] * len(opts)
+                for o in (normalize_options(obj) if obj is not None else []):
+                    why = garbled_reason(o["text"], latin)
+                    if why:
+                        dropped.append(f"[{why}] {o['text'][:120]}")
+                        continue
+                    pooled.append(o)
+                    owners.append(idx)
+            if dropped:
+                self.db.trace_add(task_id, "quality", loop=loop, note=f"dropped {len(dropped)} garbled option(s)",
+                                  output="\n".join(dropped))
             if not pooled:
-                raise RuntimeError("all proposers failed; check that model servers are running (GET /health)")
+                raise RuntimeError("no usable options: every proposer failed or wrote garbled text. "
+                                   "Run llm-doctor.bat to check the models.")
 
             # 1b. drop near-duplicates (same idea, different words)
             if cfg.dedupe and len(pooled) > 2:
-                pooled, owners = await self._dedupe(task_id, loop, pooled, owners, cfg.dedupe)
+                pooled, owners = await self._dedupe(task_id, loop, pooled, owners, cfg.dedupe, keep_min=cfg.n_options)
 
             # 2. cross-critique: each proposer reviews the options it did NOT write
             critiques: list[dict] = []
@@ -221,6 +234,7 @@ class DeliberationEngine:
                 final = normalize_options(obj)[: cfg.n_options] if obj is not None else []
                 if isinstance(obj, dict) and isinstance(obj.get("decision_log"), list):
                     decision_log = [str(x) for x in obj["decision_log"]]
+            final = [o for o in final if not garbled_reason(o["text"], latin)]
             if not final:
                 final = pooled[: cfg.n_options]
 
@@ -250,9 +264,10 @@ class DeliberationEngine:
 
     # ------------------------------------------------------------- variety
     async def _dedupe(self, task_id: str, loop: int, pooled: list[dict], owners: list[int],
-                      threshold: float) -> tuple[list[dict], list[int]]:
+                      threshold: float, keep_min: int = 1) -> tuple[list[dict], list[int]]:
         try:
-            vecs = await self.llm.embed([o["text"] for o in pooled])
+            # nomic-embed expects a task prefix; "clustering:" is the one for grouping similar texts
+            vecs = await self.llm.embed(["clustering: " + o["text"] for o in pooled])
         except Exception as e:
             log.info("dedupe skipped: %s", e)
             return pooled, owners
@@ -265,6 +280,12 @@ class DeliberationEngine:
         for i, v in enumerate(vecs):
             if all(cos(v, vecs[k]) < threshold for k in keep):
                 keep.append(i)
+        # never let the filter starve the synthesizer: top up with the most distinct of the rest
+        target = min(len(pooled), max(1, keep_min))
+        while len(keep) < target:
+            rest = [i for i in range(len(vecs)) if i not in keep]
+            keep.append(min(rest, key=lambda i: max(cos(vecs[i], vecs[k]) for k in keep)))
+        keep.sort()
         if len(keep) < len(pooled):
             self.db.trace_add(task_id, "dedupe", loop=loop,
                               note=f"kept {len(keep)} of {len(pooled)} (dropped near-duplicates, cos >= {threshold})",

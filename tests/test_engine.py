@@ -9,6 +9,8 @@ def build(settings, transport):
 async def test_full_pipeline_with_loop_and_approval(settings, transport, fake):
     # idea uses a 2-persona judge panel: two judge calls per round, scores averaged per option
     fake.judge_scores = [[5] * 5, [6] * 5, [9] * 5, [8] * 5]   # round 1 avg 5.5 (< 7.5) -> loop; round 2 avg 8.5
+    idea = settings.tasks.tasks["idea"]   # exercise every stage, whatever the shipped defaults are
+    idea.critique, idea.judge_panel, idea.max_loops, idea.threshold = True, 2, 2, 7.5
     c = build(settings, transport)
     tid = c.tasks.create("idea", "a video about burnt toast")
     await c.tasks.wait_idle()
@@ -71,4 +73,4 @@ async def test_all_proposers_fail_marks_failed(settings, fake):
     tid = c.tasks.create("quick", "x")
     await c.tasks.wait_idle()
     t = c.db.task_get(tid)
-    assert t["status"] == "failed" and "proposers failed" in t["error"]
+    assert t["status"] == "failed" and "no usable options" in t["error"]

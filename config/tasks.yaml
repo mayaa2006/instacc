@@ -3,7 +3,7 @@
 # sensitivity: private -> every step stays local; public -> cloud slots allowed (if the cloud profile is active).
 #
 # VARIETY when every slot is the same local model (slot_profile: local):
-#   - roles below each have their own sampling (temperature / top_p / min_p / presence_penalty) + a random seed
+#   - roles below each have their own (mild) sampling (temperature / top_p / min_p) + a random seed
 #   - constraints: true    -> each proposer gets a random creative constraint from creative_constraints
 #   - diversify: sequential -> each proposer is told which angles are already taken and must avoid them
 #                             (free on one GPU: local calls run one after another anyway)
@@ -13,27 +13,29 @@
 #   - shuffle_for_judge    -> options are shuffled so the judge can't favour the synthesizer's order
 
 roles:
+  # Sampling is deliberately mild. Local models (especially abliterated ones) turn to nonsense or drift into
+  # another language at high temperature, and presence/repetition penalties break JSON output on llama.cpp
+  # (they penalize the quotes and commas the answer must contain). Variety comes from roles, seeds and
+  # constraints instead. Keep temperature <= ~0.95 and don't add presence_penalty.
   strategist:
     prompt: "You think about long-term growth, positioning and what makes this persona distinct."
-    temperature: 0.8
+    temperature: 0.75
     top_p: 0.9
   hook:
     prompt: "You are obsessed with the first 1.5 seconds: scroll-stopping hooks, trends, pattern interrupts."
-    temperature: 1.0
+    temperature: 0.85
     min_p: 0.05
-    presence_penalty: 0.4
   audience:
     prompt: "You speak for the target audience: what they actually feel, want, and would comment on."
-    temperature: 0.9
-    top_p: 0.95
+    temperature: 0.8
+    top_p: 0.92
   contrarian:
     prompt: "You deliberately take the unexpected angle and push back on the obvious idea. Never suggest the first thing anyone would think of."
-    temperature: 1.15
-    min_p: 0.08
-    presence_penalty: 0.8
+    temperature: 0.95
+    min_p: 0.05
   wildcard:
-    prompt: "You are a chaotic brainstormer. Quantity and weirdness over polish: odd formats, absurd premises, mashups."
-    temperature: 1.2
+    prompt: "You are an offbeat brainstormer: odd formats, absurd premises, mashups. Still write clear, complete sentences that make sense."
+    temperature: 0.9
     min_p: 0.05
   writer:
     prompt: "You write in the persona's exact voice."
@@ -64,16 +66,16 @@ tasks:
     description: "Scroll-stopping hooks for a video idea"
     sensitivity: public
     n_options: 5
-    proposers: ["main@0.9:hook", "alt@0.9:audience", "main@1.1:contrarian", "fast@1.2:wildcard"]
+    proposers: ["main@0.85:hook", "alt@0.8:audience", "fast@0.9:wildcard"]
     critique: false
     synthesizer: "main@0.3:writer"
     judge: judge
-    threshold: 7.0
-    max_loops: 1
+    threshold: 6.5
+    max_loops: 0
     diversify: sequential
     constraints: true
     dedupe: 0.9
-    judge_panel: 2
+    judge_panel: 1
   caption:
     description: "Captions + hashtags for a post"
     sensitivity: private          # persona voice stays local
@@ -91,30 +93,30 @@ tasks:
     description: "Video concepts for the persona"
     sensitivity: public
     n_options: 5
-    proposers: ["main@0.9:strategist", "alt@0.9:hook", "judge@1.0:contrarian", "fast@1.2:wildcard"]
-    critique: true
-    synthesizer: "main@0.3:strategist"
-    judge: judge
-    threshold: 7.5
-    max_loops: 2
-    diversify: sequential
-    constraints: true
-    dedupe: 0.9
-    judge_panel: 2
-  plan:
-    description: "A week of post concepts (pick several to schedule)"
-    sensitivity: public
-    n_options: 7
-    proposers: ["main@0.9:strategist", "alt@0.9:audience", "judge@1.0:contrarian", "fast@1.2:wildcard"]
-    critique: true
+    proposers: ["main@0.75:strategist", "alt@0.85:hook", "judge@0.95:contrarian", "fast@0.9:wildcard"]
+    critique: false            # with one local model, critique doubles the calls for little gain; true for cloud
     synthesizer: "main@0.3:strategist"
     judge: judge
     threshold: 7.0
     max_loops: 1
     diversify: sequential
     constraints: true
+    dedupe: 0.9
+    judge_panel: 1
+  plan:
+    description: "A week of post concepts (pick several to schedule)"
+    sensitivity: public
+    n_options: 7
+    proposers: ["main@0.75:strategist", "alt@0.8:audience", "judge@0.95:contrarian", "fast@0.9:wildcard"]
+    critique: false
+    synthesizer: "main@0.3:strategist"
+    judge: judge
+    threshold: 6.5
+    max_loops: 0
+    diversify: sequential
+    constraints: true
     dedupe: 0.88
-    judge_panel: 2
+    judge_panel: 1
   reply:
     description: "Reply to a follower comment"
     sensitivity: private
