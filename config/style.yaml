@@ -61,6 +61,59 @@ styles:
       slow motion, perfect skin, airbrushed, plastic skin, 3d render, cgi, cartoon, illustration, watermark,
       text artifacts, extra fingers, deformed hands, multiple people unless stated
 
+    # How she talks. Real people don't speak in scripted sentences.
+    speech:
+      words_per_second_max: 2.7   # a line must fit its take; longer lines get the take stretched or rewritten
+      rules:
+        - "Talk like a real person on their phone, not a script: short phrases, contractions, the odd 'okay so', 'wait', 'like'."
+        - "One thought per take. Trail off or restart a sentence now and then."
+        - "Never put stage directions in the dialogue (no '(laughs)', '*sighs*', '[pause]'). Describe them in the action."
+
+    # Words for the viewer go in on_screen_text and are added afterwards as a TikTok-style caption.
+    # Video models garble written text, so the scene itself never contains readable words.
+    on_screen_text:
+      max_chars: 70
+      rules:
+        - "Words the viewer should read go ONLY in on_screen_text (short, lowercase is fine). It's added later as a caption."
+        - "Never describe readable text, signs, labels or captions in the action, setting or keyframe."
+
+    # Proven shot patterns. The director picks one (job 'format') and follows its beats loosely.
+    templates:
+      - id: talk_to_camera
+        name: "Talking to the camera (storytime, rant, hot take)"
+        beats:
+          - {setup: selfie, beat: "hook line straight into the lens"}
+          - {setup: selfie, beat: "the story or point, jump cut"}
+          - {setup: pov, beat: "show the thing she's talking about"}
+          - {setup: selfie, beat: "reaction or punchline"}
+      - id: pov_hands
+        name: "POV hands (cooking, drawing, pouring, unboxing)"
+        beats:
+          - {setup: pov, beat: "hands start the task, hook in the first second"}
+          - {setup: pov, beat: "the process, closer"}
+          - {setup: pov, beat: "the result or the fail"}
+          - {setup: selfie, beat: "quick face reaction"}
+      - id: grwm
+        name: "Get ready with me / do this with me"
+        beats:
+          - {setup: propped, beat: "she starts, talking to the phone"}
+          - {setup: propped, beat: "middle step, jump cut"}
+          - {setup: mirror, beat: "the finished look"}
+      - id: try_and_fail
+        name: "Trying something and failing"
+        beats:
+          - {setup: selfie, beat: "what she's about to try"}
+          - {setup: propped, beat: "the attempt, both hands free"}
+          - {setup: pov, beat: "the disappointing result up close"}
+          - {setup: selfie, beat: "deadpan reaction"}
+      - id: day_in_life
+        name: "Day in the life (jump cuts)"
+        beats:
+          - {setup: selfie, beat: "morning hook"}
+          - {setup: pov, beat: "something she does"}
+          - {setup: pov, beat: "somewhere she goes"}
+          - {setup: selfie, beat: "end-of-day line"}
+
     # Words in a shot that mean "this couldn't be filmed by one person with one phone".
     banned_terms:
       - drone

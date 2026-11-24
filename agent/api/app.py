@@ -77,7 +77,8 @@ class Note(BaseModel):
 
 
 class Rendered(BaseModel):
-    media_path: str
+    media_path: str | None = None     # a finished video, or:
+    takes: list[str] | None = None    # raw takes, one per shot, in order: finished + checked here
 
 
 class RenderFailed(BaseModel):
@@ -290,8 +291,11 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
             t = cont.db.task_get(p["caption_task_id"]) if p.get("caption_task_id") else None
             if not t or t["status"] != "awaiting_approval":
                 continue
+            q = p.get("qa") or {}
+            qa_notes = [f"take {int(k) + 1}: {', '.join(v)}" for k, v in (q.get("take_issues") or {}).items()]
+            qa_notes += list(q.get("final_issues") or []) + list(q.get("notes") or [])
             items.append({"kind": "caption", "id": p["id"], "task_id": t["id"], "at": p["updated_at"],
-                          "title": p["concept"], "scheduled_at": p["scheduled_at"],
+                          "title": p["concept"], "scheduled_at": p["scheduled_at"], "qa_notes": qa_notes,
                           "has_media": bool(p.get("media_path")),
                           "options": (t["result"] or {}).get("options", [])})
         for p in cont.posts.list(status="failed"):
@@ -475,7 +479,7 @@ def create_app(settings: Settings, *, transport: httpx.AsyncBaseTransport | None
     @api.post("/posts/{pid}/rendered")
     async def rendered(pid: str, body: Rendered, request: Request):
         try:
-            return await c(request).posts.rendered(pid, body.media_path)
+            return await c(request).posts.rendered(pid, body.media_path, body.takes)
         except PostError as e:
             raise HTTPException(409, str(e))
 

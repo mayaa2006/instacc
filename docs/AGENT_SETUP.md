@@ -161,6 +161,29 @@ one phone)"**.
 To change the style, edit that file. For example: add banned words, change the take lengths, describe a
 filming friend as a new setup, or write a different `brief`.
 
+## Finishing: voice, lip-sync, phone look, captions, QA
+When the video side sends raw takes, the agent turns them into the final video. Settings are in
+`config/finishing.yaml`; every step can be switched off.
+
+- **Voice (free, local):** run `get-voice.bat` (about 63 MB), then set `voice.engine: piper` in
+  `config/finishing.yaml`. Other voices: `get-voice.bat en_GB-jenny_dioco-medium` and similar. To use a
+  *cloned* voice of your character, point `voice.engine: command` at any voice-cloning tool that writes a wav
+  (placeholders `{text_file}`, `{out}`, `{voice_ref}`).
+- **Lip-sync:** for takes where she talks to the camera. It needs a local lip-sync model (e.g. LatentSync)
+  set up by the video side, either as a command (`lipsync.command` with `{video}` `{audio}` `{out}`) or
+  inside ComfyUI. Off until configured.
+- **Phone look:** 1080×1920 at 30 fps, gentle handheld wobble on selfie/POV takes, a slightly softer front
+  camera, auto-exposure drift, light sensor noise, hard jump cuts. Strengths are in `look:`.
+- **Captions:** `on_screen_text` is burned in TikTok-style (white bold with a black outline).
+- **Audio:** the voice is shaped like a phone microphone and levelled to social-video loudness, over quiet
+  room tone. Drop real recordings of her places into `audio.room_tones` for more realism.
+- **Quality check:**
+  - Black or frozen pictures, wrong lengths and sideways video are caught automatically, and those takes are
+    re-rendered up to 2 times before you see them.
+  - Anything left shows as ⚠️ on the "Video ready" card.
+  - With a vision model, it also checks for a cinematic look, deformed hands, extra people and garbled
+    text. To enable that, add a `vlm` slot in `config/agent.yaml` and set `qa.vlm.enabled: true`.
+
 ## Evals: is the "thinking" worth it? (Phase 2)
 `evals/golden.yaml` has 30 sample requests (hooks, captions, ideas). **Rewrite them for your persona.**
 

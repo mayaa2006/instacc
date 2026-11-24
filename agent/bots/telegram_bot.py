@@ -212,6 +212,8 @@ class TelegramBot:
             await self.broadcast(f"✅ <b>published</b> · {head}\n" + "\n".join(_h(x) for x in links) + err)
         elif event == "failed":
             await self.broadcast(f"❌ <b>post failed</b> · {head}\n{_h(post.get('error'))}")
+        elif event == "rerender":
+            await self.broadcast(f"🔁 <b>re-rendering</b> · {head}\n{_h(post.get('error'))}")
         elif event == "needs_reconnect":
             await self.broadcast(f"🔑 <b>{_h(post.get('platform'))} needs reconnecting</b>\n{_h(post.get('error'))}")
 

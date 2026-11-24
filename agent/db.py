@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS posts (
   caption_task_id TEXT,
   ai_label INTEGER NOT NULL DEFAULT 1,
   published TEXT,
+  qa TEXT,
   error TEXT,
   created_at REAL NOT NULL,
   updated_at REAL NOT NULL
@@ -195,6 +196,18 @@ class DB:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(SCHEMA)
+            self._migrate()
+
+    # Columns added after the first release. CREATE TABLE IF NOT EXISTS never alters an existing table,
+    # so databases created by an older version get them here.
+    _ADDED_COLUMNS = {"posts": {"qa": "TEXT"}}
+
+    def _migrate(self) -> None:
+        for table, cols in self._ADDED_COLUMNS.items():
+            have = {r[1] for r in self._conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            for name, typ in cols.items():
+                if name not in have:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {typ}")
 
     def execute(self, sql: str, params: tuple | dict = ()) -> sqlite3.Cursor:
         with self._lock:

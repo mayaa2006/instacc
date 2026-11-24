@@ -69,7 +69,21 @@ class Container:
             publishers["tiktok"] = TikTokClient(pub.tiktok, db, pub.ai_label, publish_transport, **kw)
         producer = Producer(db, llm, memory, continuity, style=settings.style,
                             style_id=settings.style_file.active if settings.style_file else None)
-        posts = PostService(settings, db, tasks, producer, continuity, publishers)
+        from finishing.config import load_finishing
+        try:
+            fin_cfg = load_finishing(settings.root)
+        except Exception:
+            fin_cfg = None
+        vlm_check = None
+        if "vlm" in settings.agent.slots:   # a vision model for checking rendered frames (optional)
+            from agent.deliberation.jsonutil import extract_json
+
+            async def vlm_check(messages):
+                r = await llm.chat("vlm", messages, temperature=0.0, sensitivity="private", json_mode=True,
+                                   max_tokens=400)
+                return extract_json(r.text)
+        posts = PostService(settings, db, tasks, producer, continuity, publishers,
+                            finishing_cfg=fin_cfg, vlm_check=vlm_check)
         comments = CommentService(settings, db, llm, memory, publishers)
         analytics = AnalyticsService(settings, db, publishers)
         autopilot = Autopilot(settings, posts, comments, analytics, publishers, gpu)

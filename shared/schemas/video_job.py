@@ -63,6 +63,7 @@ class VideoJob(BaseModel):
     seed_policy: Literal["locked_per_series", "locked_per_video", "random"] = "locked_per_series"
     audio: Audio = Field(default_factory=Audio)
     style: str = Field("", description="filming style id from config/style.yaml, e.g. phone_ugc")
+    format: str = Field("", description="shot pattern id from the style's templates, e.g. talk_to_camera")
     negative_prompt: str = Field("", description="what the video model must avoid (built from the style)")
     realism_warnings: list[str] = Field(default_factory=list, description="issues the agent couldn't fix")
     render: dict = Field(default_factory=dict, description="owned by the video side")

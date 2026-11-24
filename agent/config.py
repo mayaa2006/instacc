@@ -183,8 +183,32 @@ class Timing(BaseModel):
     max_total_s: float = 30
 
 
+class Speech(BaseModel):
+    words_per_second_max: float = 2.7
+    rules: list[str] = Field(default_factory=list)
+
+
+class ScreenText(BaseModel):
+    max_chars: int = 70
+    rules: list[str] = Field(default_factory=list)
+
+
+class Beat(BaseModel):
+    setup: str
+    beat: str
+
+
+class Template(BaseModel):
+    id: str
+    name: str
+    beats: list[Beat]
+
+
 class FilmStyle(BaseModel):
     name: str
+    speech: Speech = Field(default_factory=Speech)
+    on_screen_text: ScreenText = Field(default_factory=ScreenText)
+    templates: list[Template] = Field(default_factory=list)
     timing: Timing = Field(default_factory=Timing)
     brief: str = ""
     setups: dict[str, CameraSetup]

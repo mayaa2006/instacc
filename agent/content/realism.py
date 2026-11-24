@@ -14,6 +14,10 @@ _TWO_HANDS = re.compile(r"\b(both hands|two hands|claps?|clapping|ties? (her|a) 
                         r"holds? .* (in each hand|with both))", re.I)
 _FACE = re.compile(r"\b(her face|she smiles|smiles at|looks (into|at) the (camera|lens)|she talks to (the )?camera|"
                    r"winks|her eyes|facial expression|she grins|she laughs into)\b", re.I)
+_STAGE = re.compile(r"\([^)]*\)|\*[^*]+\*|\[[^\]]*\]")
+_TEXT_IN_SCENE = re.compile(r"\b(text (that )?(says|reads)|sign (that )?(says|reads)|(caption|subtitle)s?\b|"
+                            r"words? on (the )?screen|written on|label (that )?(says|reads)|"
+                            r"note (that )?(says|reads))", re.I)
 _OTHER_PERSON_FILMING = re.compile(r"\b(friend films|someone films|camera operator|cameraman|filmed by (a|her) "
                                    r"(friend|boyfriend|partner))\b", re.I)
 
@@ -48,6 +52,21 @@ def check_shots(shots: list[dict], style: FilmStyle) -> list[str]:
             issues.append(f"shot {i}: she needs both hands, but one is holding the phone; use 'propped'")
         if _OTHER_PERSON_FILMING.search(text):
             issues.append(f"shot {i}: nobody else holds the camera")
+        line = (sh.get("dialogue") or "").strip()
+        if line:
+            words = len(line.split())
+            fits = int(d * style.speech.words_per_second_max)
+            if words > fits:
+                issues.append(f"shot {i}: the line has {words} words but a {d:g}-second take fits about {fits}; "
+                              "shorten it or split it across takes")
+            if _STAGE.search(line):
+                issues.append(f"shot {i}: no stage directions in dialogue; describe them in the action")
+        scene = " ".join(str(sh.get(k, "")) for k in ("action", "setting", "keyframe_prompt"))
+        if _TEXT_IN_SCENE.search(scene):
+            issues.append(f"shot {i}: don't put readable words in the scene (video models garble them); "
+                          "put them in on_screen_text")
+        if len(sh.get("on_screen_text") or "") > style.on_screen_text.max_chars:
+            issues.append(f"shot {i}: on_screen_text is longer than {style.on_screen_text.max_chars} characters")
     return issues
 
 
@@ -96,6 +115,20 @@ def auto_repair(shots: list[dict], style: FilmStyle) -> tuple[list[dict], list[s
         if new != sid and new in setups:
             notes.append(f"shot {i}: phone setup {sid or 'missing'} → {new}")
             sh["setup"] = new
+        line = sh.get("dialogue") or ""
+        if _STAGE.search(line):   # "(laughs)" etc. would be spoken by the voice engine
+            sh["dialogue"] = " ".join(_STAGE.sub(" ", line).split())
+            notes.append(f"shot {i}: removed stage directions from the dialogue")
+        if line.strip():          # give a long line a longer take before touching anything else
+            need = len(sh["dialogue"].split()) / style.speech.words_per_second_max
+            cur = float(sh.get("duration_s") or 0)
+            if need > cur:
+                sh["duration_s"] = min(style.timing.max_shot_s, round(need * 2 + 0.49) / 2)
+        ost = sh.get("on_screen_text") or ""
+        if len(ost) > style.on_screen_text.max_chars:
+            cut = ost[: style.on_screen_text.max_chars].rsplit(" ", 1)[0].rstrip(",;: ")
+            sh["on_screen_text"] = cut
+            notes.append(f"shot {i}: shortened the on-screen text")
         fixed.append(sh)
     # timing: clamp each take, then stretch or shrink takes (within limits) to hit the total length
     t = style.timing

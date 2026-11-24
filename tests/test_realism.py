@@ -112,3 +112,47 @@ def test_auto_repair_timing(settings):
     assert all(s["duration_s"] <= 5 for s in fixed) and check_shots(fixed, settings.style) == []
     one = [{"setup": "selfie", "duration_s": 4, "action": "she sighs"}]
     assert check_shots(auto_repair(one, settings.style)[0], settings.style)   # too few shots: model must rewrite
+
+
+def test_speech_and_screen_text_rules(settings):
+    st = settings.style
+    long_line = {"setup": "selfie", "duration_s": 5, "action": "she holds the cup",
+                 "dialogue": "okay so I have been trying to make this latte heart for literally ten days and it keeps turning into a blob"}
+    text_scene = {"setup": "pov", "duration_s": 5, "action": "a sign that says CLOSED on the café door"}
+    issues = check_shots([long_line, text_scene], st)
+    assert any("words but a 5-second take" in i for i in issues)
+    assert any("readable words" in i for i in issues)
+
+    from agent.content.realism import auto_repair
+    staged = [{"setup": "selfie", "duration_s": 3, "action": "she sighs", "dialogue": "okay (laughs) attempt ten *sighs* again"},
+              {"setup": "pov", "duration_s": 5, "action": "her hands", "on_screen_text": "word " * 30}]
+    fixed, notes = auto_repair(staged, st)
+    assert fixed[0]["dialogue"] == "okay attempt ten again"
+    assert len(fixed[1]["on_screen_text"]) <= st.on_screen_text.max_chars
+    assert check_shots(fixed, st) == []
+
+
+async def test_director_gets_templates_and_speech_rules(settings, transport, fake):
+    settings.agent.llama_server.manage_processes = False
+    c = Container.build(settings, transport=transport)
+    p = c.posts.create("toast", auto_script=False)
+    await c.posts.generate_script(p["id"])
+    prompt = next(call for call in fake.calls if "You are directing" in call["system"])["system"]
+    assert "talk_to_camera" in prompt and "pov_hands" in prompt and '"format"' in prompt
+    assert "HOW SHE TALKS" in prompt and "words per second" in prompt and "WORDS ON SCREEN" in prompt
+
+
+def test_db_migration_adds_qa_column(tmp_path):
+    import sqlite3
+    from agent.db import DB
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE posts (id TEXT PRIMARY KEY, series_id TEXT, status TEXT NOT NULL, concept TEXT NOT NULL,"
+                " idea_task_id TEXT, idea_score REAL, platforms TEXT NOT NULL, scheduled_at REAL, video_job TEXT,"
+                " media_path TEXT, caption TEXT, hashtags TEXT, caption_task_id TEXT, ai_label INTEGER NOT NULL DEFAULT 1,"
+                " published TEXT, error TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL)")
+    con.commit()
+    con.close()
+    db = DB(path)
+    cols = {r["name"] for r in db.query("PRAGMA table_info(posts)")}
+    assert "qa" in cols

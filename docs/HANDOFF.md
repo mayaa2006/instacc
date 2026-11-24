@@ -4,6 +4,48 @@ Written at the end of the cloud session that built the agent side, for whoever c
 Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/instacc`.
 
 ## Latest changes (newest first)
+- **Hyperrealism pass** (the user picked items 1, 4, 6, 8, 9, 10 and 11 from the improvement list).
+  - **New `finishing/` package** (standalone, usable by the video side). It turns rendered takes plus the
+    VideoJob into a phone-realistic final video and a QA report, configured in `config/finishing.yaml`:
+    1. **Voice:** TTS per take (#11). Piper is free and local: `get-voice.bat` installs `piper-tts` into the
+       portable Python and downloads a voice. There is also a `command` adapter for voice cloning. The voice
+       gets phone-mic EQ and compression, is levelled to -16 LUFS, and sits over room tone (generated, or
+       per-location recordings).
+    2. **Lip-sync** for face takes with dialogue (#1): a `command` adapter for a local model (e.g.
+       LatentSync). **Off and untested:** it needs a model the video side has to set up.
+    3. **Phone look** (#9): 1080×1920 at 30 fps, handheld wobble for selfie/pov/mirror, a softer front camera,
+       auto-exposure drift, temporal noise, hard-cut concat, H.264 export with faststart.
+    4. **Captions** (#8): `on_screen_text` burned in TikTok-style with drawtext.
+    5. **QA** (#10), run on the raw takes:
+       - black picture, frozen picture (catches still-image renders), length, orientation
+       - optional VLM frame check (slot `vlm` + `qa.vlm.enabled`)
+       - final file: size, fps, audio, total length
+  - **Agent integration.** `POST /api/posts/{id}/rendered` now accepts `{"takes": [...]}`:
+    - The agent finishes the takes in a worker thread to `data/media/<id>.mp4`.
+    - Failed takes go back to the render queue with `qa.rerender` and the reasons, up to
+      `auto_rerender_attempts` (2) times.
+    - After that it shows the issues on the "Video ready" card. Telegram says when it re-renders.
+    - New post status `finishing`, and a new `qa` column, added to existing databases by a migration in
+      `agent/db.py`.
+  - **Shot lists (agent side), in `config/style.yaml` and `agent/content/realism.py`:**
+    - **Natural speech (#4):** lines must fit their take (≤ 2.7 words/s), and there are speech rules.
+      Auto-repair strips stage directions and stretches takes for long lines.
+    - **Format templates (#6):** talk_to_camera, pov_hands, grwm, try_and_fail and day_in_life. The director
+      picks one (`VideoJob.format`).
+    - **Text (#8):** readable words only in `on_screen_text`, never in the scene. Auto-repair shortens
+      captions; text described in the scene goes back to the model.
+  - **Verified:**
+    - 94 tests, including real-ffmpeg runs of the whole finishing flow and the re-render loop.
+    - A real Piper voice test: speech at a natural level, peak -5 dB.
+    - 720×1280@16 fps takes become 1080×1920@30 fps with captions.
+  - **Not verified:** lip-sync, the VLM check with a real vision model, and anything on Windows. The
+    `tools/ffmpeg` discovery, Arial Bold font discovery and `python -m piper` should work on Windows but
+    haven't been run there.
+  - **To verify on the PC:**
+    1. Run `python\python.exe -m pytest -q tests/test_finishing.py`. It uses `tools\ffmpeg`, so it checks the
+       ffmpeg discovery.
+    2. Run `get-voice.bat` and set `voice.engine: piper`.
+    3. Send one post's raw takes with `{"takes": [...]}`.
 - **Realistic phone-video style.** The user asked for "realistic short-form videos in the style of real videos
   people might film with one phone camera".
   - **`config/style.yaml`** (active style `phone_ugc`, editable by the user) holds:
@@ -179,7 +221,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 | CI | `.github/workflows/tests.yml` | Ubuntu + Windows. Hasn't run yet: no default branch on GitHub |
 
 ## 3. What was verified, and how
-- **83 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
+- **94 tests pass** (originally 50) on Python 3.13 and 3.12, using fake LLMs and fake IG/TikTok APIs.
   - The fakes check request shapes: headers, `is_ai_generated`/`is_aigc`, chunk ranges and token rotation.
 - **Live run against real `llama-server`, using a tiny Qwen3-0.6B on CPU in the cloud:**
   - the scheduler starts, stops and restarts servers across mode switches

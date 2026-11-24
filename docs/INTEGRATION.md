@@ -16,11 +16,33 @@ POST /api/gpu/mode {"mode":"render","holder":"video","ttl_s":3600}    # blocks u
 GET  /api/render-queue                                                 # posts with status render_queued, each has .video_job
 POST /api/posts/{id}/claim                                             # -> rendering
 ...render post.video_job...
-POST /api/posts/{id}/rendered  {"media_path": "renders/<id>.mp4"}      # path absolute or relative to InstACC
+POST /api/posts/{id}/rendered  {"takes": ["renders/<id>_1.mp4", ...]}  # RECOMMENDED: raw takes, one per shot
+  or POST /api/posts/{id}/rendered {"media_path": "renders/<id>.mp4"}   # an already-finished video
   or POST /api/posts/{id}/render-failed {"error": "..."}
 POST /api/gpu/mode {"mode":"think"}                                    # agent also calls ComfyUI /free
 ```
-Re-send the render-mode call before the TTL runs out to keep the GPU. After `rendered`, the agent
+Re-send the render-mode call before the TTL runs out to keep the GPU.
+
+**With `takes`, the agent finishes and checks the video itself** (the `finishing/` package):
+1. Voice: TTS for the `dialogue` of each take.
+2. Optional lip-sync on face takes.
+3. The phone look: 1080×1920 at 30 fps, handheld wobble on selfie/POV takes, a softer front camera,
+   auto-exposure drift, sensor noise.
+4. TikTok-style captions from `on_screen_text`.
+5. Phone-mic audio and room tone.
+6. Hard-cut concat.
+7. QA.
+
+**Takes that fail QA come back to the render queue.** That covers black picture, a frozen picture (a
+still-image render), wrong length, landscape output, and, if a vision model is configured, a cinematic look,
+deformed hands, extra people or garbled text.
+- The post is back in `GET /api/render-queue` with `qa.rerender = [shot indexes, 0-based]` and `qa.take_issues`.
+- `qa.takes` lists the previous files, so you only re-render those shots and send the full `takes` list again.
+- After `qa.auto_rerender_attempts` (2) it finishes anyway and shows the user the issues.
+
+You can also run the same thing yourself:
+`python\python.exe -m finishing --job job.json --takes t1.mp4 t2.mp4 --out final.mp4`
+It prints a JSON QA report and exits with 1 if anything failed. Settings are in `config/finishing.yaml`. After `rendered`, the agent
 writes captions, sends you the video on Telegram for approval, and schedules it.
 
 ## VideoJob (`shared/schemas/video_job.py`, DRAFT v0.2: phone realism)

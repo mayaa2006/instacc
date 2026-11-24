@@ -30,6 +30,16 @@ HOW THE ONE PHONE CAN BE HELD (each shot uses exactly one "setup" id):
 
 RULES:
 {rules}
+
+HOW SHE TALKS:
+{speech}
+- A line must fit its take: at most about {wps:g} words per second of the take.
+
+WORDS ON SCREEN:
+{text_rules}
+
+SHOT PATTERNS (pick the one that fits the concept, put its id in "format", follow its beats loosely):
+{templates}
 - Each shot is one continuous take of {min_shot_s:g}-{max_shot_s:g} seconds (the video model makes ~5 s clips).
   Use {min_shots}-{max_shots} shots, {min_total_s:g}-{max_total_s:g} seconds in total.
 - Changing setup between shots is a jump cut: she stopped recording and moved the phone. That's normal.
@@ -40,7 +50,7 @@ RULES:
 - "camera_motion" is how the phone moves: e.g. "static", "slight handheld shake", "she tilts the phone down to the cup".
 {feedback}
 Reply with ONLY JSON in this shape:
-{{"title": "...", "concept": "...",
+{{"title": "...", "concept": "...", "format": "<pattern id>",
   "continuity": {{"outfit": "...", "location": "...", "lighting": "...", "props": ["..."], "time_of_day": "..."}},
   "shots": [{{"setup": "selfie|propped|pov|...", "duration_s": 4, "camera": "framing as the phone sees it",
              "camera_motion": "...", "action": "...", "setting": "...", "dialogue": "", "on_screen_text": "",
@@ -76,6 +86,11 @@ class Producer:
                    "- (any)",
             rules="\n".join(f"- {r}" for r in style.rules) if style else LEGACY_RULES,
             feedback="",
+            speech="\n".join(f"- {r}" for r in style.speech.rules) if style else "- Natural, short lines.",
+            wps=style.speech.words_per_second_max if style else 2.7,
+            text_rules="\n".join(f"- {r}" for r in style.on_screen_text.rules) if style else "",
+            templates="\n".join(f"- {t.id}: {t.name}: " + " → ".join(f"[{b.setup}] {b.beat}" for b in t.beats)
+                                for t in style.templates) if style and style.templates else "- (free form)",
             **(style.timing.model_dump() if style else
                {"min_shots": 2, "max_shots": 6, "min_shot_s": 2, "max_shot_s": 5, "min_total_s": 10, "max_total_s": 30}),
         )

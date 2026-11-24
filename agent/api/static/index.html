@@ -190,7 +190,7 @@ function dayLabel(ts) {
 }
 const SETUP = { selfie: ["🤳", "Selfie"], propped: ["📱", "Propped up"], pov: ["👀", "Her view"], mirror: ["🪞", "Mirror"], screen: ["🖥", "Screen"] };
 const STATUS = { planned: ["Planning", ""], scripting: ["Writing shots", ""], script_review: ["Needs you", "acc"], render_queued: ["Waiting to render", ""],
-  rendering: ["Rendering", ""], captioning: ["Writing caption", ""], caption_review: ["Needs you", "acc"], scheduled: ["Ready", "ok"],
+  rendering: ["Rendering", ""], finishing: ["Finishing video", ""], captioning: ["Writing caption", ""], caption_review: ["Needs you", "acc"], scheduled: ["Ready", "ok"],
   publishing: ["Posting…", ""], published: ["Posted", "ok"], failed: ["Problem", "bad"], dropped: ["Dropped", ""] };
 const pill = s => { const [t, c] = STATUS[s] || [s, ""]; return `<span class="pill ${c}">${esc(t)}</span>`; };
 
@@ -258,6 +258,7 @@ function card(it) {
     return `<div class="card"><div class="kicker">🎞 <b>Video ready</b> · posts ${esc(when(it.scheduled_at))}</div>
       <div class="title">${esc(it.title)}</div>
       ${it.has_media ? `<video controls playsinline preload="metadata" src="${mediaUrl(it.id)}"></video>` : ""}
+      ${(it.qa_notes || []).length ? `<div class="muted" style="color:var(--warn);margin-bottom:8px">⚠️ Check before approving:<br>${it.qa_notes.map(esc).join("<br>")}</div>` : ""}
       <div class="muted" style="margin-bottom:8px">Pick a caption: approving schedules the post.</div>
       ${optionsHtml(it.task_id, it.options, false)}
       <div class="row"><button class="btn good wide" ${s == null ? "disabled" : ""} data-do="approve" data-id="${it.task_id}">Approve &amp; schedule</button>

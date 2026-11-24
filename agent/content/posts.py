@@ -22,7 +22,7 @@ from agent.publish.base import AuthError, PublishError
 log = logging.getLogger(__name__)
 Listener = Callable[[str, dict], Awaitable[None]]
 
-ACTIVE = ("planned", "scripting", "script_review", "render_queued", "rendering", "captioning",
+ACTIVE = ("planned", "scripting", "script_review", "render_queued", "rendering", "finishing", "captioning",
           "caption_review", "scheduled", "publishing")
 
 
@@ -31,7 +31,7 @@ class PostError(ValueError):
 
 
 def _row(r: dict) -> dict:
-    for k in ("platforms", "video_job", "published"):
+    for k in ("platforms", "video_job", "published", "qa"):
         if r.get(k):
             r[k] = json.loads(r[k])
     r["ai_label"] = bool(r.get("ai_label"))
@@ -39,7 +39,10 @@ def _row(r: dict) -> dict:
 
 
 class PostService:
-    def __init__(self, settings: Settings, db: DB, tasks, producer: Producer, continuity, publishers: dict):
+    def __init__(self, settings: Settings, db: DB, tasks, producer: Producer, continuity, publishers: dict,
+                 finishing_cfg=None, vlm_check=None):
+        self.finishing_cfg = finishing_cfg   # finishing.FinishingCfg; None = takes can't be finished here
+        self.vlm_check = vlm_check           # optional: messages -> verdict dict (vision model)
         self.s = settings
         self.pub_cfg = settings.agent.publishing
         self.db = db
@@ -91,7 +94,7 @@ class PostService:
         return [_row(r) for r in rows]
 
     def _update(self, pid: str, **f) -> dict:
-        for k in ("platforms", "video_job", "published"):
+        for k in ("platforms", "video_job", "published", "qa"):
             if k in f and f[k] is not None and not isinstance(f[k], str):
                 f[k] = json.dumps(f[k])
         f["updated_at"] = time.time()
@@ -226,16 +229,27 @@ class PostService:
             raise PostError(f"post is {p['status']}, not render_queued")
         return self._update(pid, status="rendering", error=None)
 
-    async def rendered(self, pid: str, media_path: str) -> dict:
+    async def rendered(self, pid: str, media_path: str | None = None, takes: list[str] | None = None) -> dict:
+        """The video side is done. Either a finished `media_path`, or raw `takes` (one per shot) that we finish
+        here: voice, lip-sync, phone look, captions, audio, QA. Takes that fail QA go back to the render queue."""
         p = self.get(pid)
-        if p["status"] not in ("rendering", "render_queued", "caption_review"):
+        if p["status"] not in ("rendering", "render_queued", "caption_review", "finishing"):
             raise PostError(f"post is {p['status']}")
-        path = Path(media_path)
-        if not path.is_absolute():
-            path = self.s.root / path
+        if takes:
+            return await self._finish_takes(p, takes)
+        if not media_path:
+            raise PostError("send media_path or takes")
+        path = self._abs(media_path)
         if not path.exists():
             raise PostError(f"media not found: {path}")
-        p = self._update(pid, status="captioning", media_path=str(path))
+        return await self._to_captions(pid, str(path))
+
+    def _abs(self, p: str) -> Path:
+        path = Path(p)
+        return path if path.is_absolute() else self.s.root / path
+
+    async def _to_captions(self, pid: str, media: str) -> dict:
+        p = self._update(pid, status="captioning", media_path=media)
         job = p.get("video_job") or {}
         prompt = (f"{p['concept']}\n\nVideo: " + "; ".join(s.get("action", "") for s in job.get("shots", []))
                   + "\nInclude 3-6 relevant hashtags at the end.")
@@ -243,6 +257,45 @@ class PostService:
         p = self._update(pid, caption_task_id=tid)
         await self._emit("rendered", p)
         return p
+
+    async def _finish_takes(self, p: dict, takes: list[str]) -> dict:
+        from finishing.pipeline import finish
+
+        if self.finishing_cfg is None:
+            raise PostError("finishing isn't available; send a finished media_path instead")
+        pid = p["id"]
+        paths = [str(self._abs(t)) for t in takes]
+        missing = [t for t in paths if not Path(t).exists()]
+        if missing:
+            raise PostError(f"takes not found: {', '.join(missing)}")
+        qa_state = p.get("qa") or {}
+        attempts = int(qa_state.get("attempts", 0))
+        max_attempts = self.finishing_cfg.qa.auto_rerender_attempts
+        out = self.s.data_path / "media" / f"{pid}.mp4"
+        self._update(pid, status="finishing", error=None)
+        style = self.s.style
+        loop = asyncio.get_running_loop()
+        vlm = None
+        if self.vlm_check is not None:
+            def vlm(messages, _f=self.vlm_check):   # called from the worker thread
+                return asyncio.run_coroutine_threadsafe(_f(messages), loop).result(600)
+        res = await asyncio.to_thread(
+            finish, p["video_job"] or {}, paths, str(out), self.finishing_cfg,
+            stop_on_bad_takes=attempts < max_attempts, vlm_check=vlm,
+            timing=style.timing.model_dump() if style else None)
+        report = {**res.as_dict(), "attempts": attempts + (1 if res.rerender else 0), "takes": paths}
+        if res.rerender and attempts < max_attempts:
+            p = self._update(pid, status="render_queued", qa=report,
+                             error="re-rendering: " + "; ".join(f"take {i + 1}: {', '.join(v)}"
+                                                                for i, v in res.take_issues.items()))
+            await self._emit("rerender", p)
+            return p
+        if not res.path:
+            p = self._update(pid, status="failed", qa=report, error="finishing: " + "; ".join(res.final_issues))
+            await self._emit("failed", p)
+            return p
+        self._update(pid, qa=report)
+        return await self._to_captions(pid, res.path)
 
     def render_failed(self, pid: str, error: str) -> dict:
         p = self.get(pid)

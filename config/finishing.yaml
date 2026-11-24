@@ -1,0 +1,62 @@
+# Finishing: turns rendered takes into a finished phone-realistic video (finishing/ package).
+# Order per take: voice (TTS) -> lip-sync -> phone look + captions; then hard-cut concat, audio mix, export, QA.
+# Everything here is optional and can be switched off; tools are looked up inside the InstACC folder first.
+
+ffmpeg: auto            # auto: tools/ffmpeg/**/ffmpeg(.exe), then PATH. Or a path relative to InstACC.
+
+output:
+  width: 1080           # phones record 1080x1920; renders are upscaled
+  height: 1920
+  fps: 30               # phones record 30 fps; 24 fps reads as "film"
+  interpolate: false    # true: motion-interpolate to 30 fps (smoother, much slower). The video side may do RIFE instead.
+  crf: 21               # final H.264 quality (lower = bigger file)
+  audio_bitrate: 160k
+
+look:
+  noise: 5              # temporal sensor noise strength (0 = off)
+  exposure_drift: 0.012 # gentle auto-exposure breathing (0 = off)
+  wobble_px: 9          # handheld wobble for selfie / pov / mirror takes (0 = off)
+  front_camera_softness: 0.45   # selfie/mirror takes are a little softer than the back camera (0 = off)
+  mirror_selfies: false # flip selfie takes like many phones save them; only if the render isn't mirrored already
+
+captions:               # on_screen_text, burned in TikTok-style (video models garble text, so it's added here)
+  enabled: true
+  font: auto            # auto: Windows Arial Bold / DejaVu Sans Bold. Or a .ttf path.
+  size: 0.042           # fraction of video height
+  y: 0.27               # vertical position (fraction of height from the top)
+  max_chars_per_line: 22
+  max_chars: 90
+
+voice:                  # spoken dialogue
+  engine: none          # none | piper | command   (run get-voice.bat, then set: piper)
+  # piper: free local TTS, fast on CPU, no voice cloning. "module" = the piper-tts package in the portable Python.
+  piper_binary: module
+  piper_voice: voices/en_US-amy-medium.onnx   # browse others: huggingface.co/rhasspy/piper-voices
+  # command: any TTS that writes a wav (e.g. a voice-cloning model). Placeholders: {text_file} {out} {voice_ref}
+  command: ""
+  voice_ref: ""         # reference recording of her voice, for cloning engines
+  max_speedup: 1.15     # if the line is longer than the take, speak up to this much faster, then trim
+
+audio:
+  phone_mic: true       # band-limit + compress like a phone microphone
+  room_tone: true       # quiet background noise so silence never sounds digital
+  room_tone_level: 0.004
+  room_tones:           # optional recordings per place: keyword in the location -> file (relative to InstACC)
+    # kitchen: assets/roomtone/kitchen.wav
+    # street: assets/roomtone/lisbon_street.wav
+  dialogue_gain_db: 0
+
+lipsync:                # for selfie / propped / mirror takes with dialogue
+  enabled: false
+  # A local lip-sync model (e.g. LatentSync), run as a command. Placeholders: {video} {audio} {out}
+  command: ""
+  timeout_s: 900
+
+qa:
+  black_max_s: 0.4      # longest allowed black stretch
+  frozen_max_s: 0.9     # longest allowed frozen picture
+  duration_tolerance_s: 1.5
+  vlm:                  # optional vision-model check of sampled frames (needs a vision model in the "vlm" slot)
+    enabled: false
+    frames_per_take: 3
+  auto_rerender_attempts: 2   # failed takes go back to the render queue this many times before showing you

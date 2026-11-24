@@ -34,7 +34,8 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   stop during renders.
 
 ## Dev commands
-- Tests: `python\python.exe -m pytest -q` (83 tests; needs `pip install pytest pytest-asyncio`).
+- Tests: `python\python.exe -m pytest -q` (94 tests; needs `pip install pytest pytest-asyncio`; the
+  finishing tests need ffmpeg and take a few minutes).
 - Run: `start-agent.bat`. It listens on the network by default, prints a phone QR code and opens the PC
   browser signed in. The app is at `/`, the classic dashboard at `/classic`. Phones pair by QR
   (`agent/pairing.py`) or Telegram `/app`.
@@ -42,8 +43,11 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
   - `config/agent.yaml`: models, servers, publishing, autonomy.
   - `config/tasks.yaml`: deliberation per task type.
   - `config/style.yaml`: the filming style. Videos must look like ONE person filmed them on ONE phone; this
-    file holds the phone setups, banned camera terms, look/negative prompt and timing, enforced in
-    `agent/content/realism.py`.
+    file holds the phone setups, banned camera terms, look/negative prompt, timing, speech rules,
+    on-screen-text rules and format templates, enforced in `agent/content/realism.py`.
+  - `config/finishing.yaml`: turning raw takes into the final video. This is the `finishing/` package:
+    voice (Piper via `get-voice.bat`), optional lip-sync, phone look, captions, audio, QA with automatic
+    re-render of bad takes.
 - **Models are free and local by default** (`slot_profile: local`).
   - `slot_profile: cloud` switches `alt`/`judge` to uncensored OpenRouter models (paid, capped).
   - With one local model, variety comes from role sampling, seeds, creative constraints, sequential
