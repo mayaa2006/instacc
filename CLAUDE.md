@@ -23,7 +23,6 @@ The contract between the halves is `docs/INTEGRATION.md` and `shared/schemas/`.
 - Keep `.ps1` files ASCII-only (PowerShell 5.1) and `.bat` files CRLF (`.gitattributes` enforces it).
 - Never commit `comfyui/ python/ tools/ llm/ cache/ logs/ data/ .env` or model weights.
 - **Ask the user before:**
-  - pushing to GitHub
   - downloading big models (`get-llm-models.bat` is about 21 GB; the video models about 32 GB)
   - anything that posts publicly
 - Official Instagram/TikTok APIs only: no browser bots. The AI-generated label is always on.

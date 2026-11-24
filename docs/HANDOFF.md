@@ -153,7 +153,7 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
    - The likely clashes are `.gitignore` and maybe `README.md` or `docs/`.
    - Back up any clashing local files, check out the branch, then merge their contents back by hand.
    - The `.gitignore` must keep both sets of entries.
-4. Commit the video side's own work on top. **Ask the user before pushing.**
+4. Commit the video side's own work on top and push it (pushing no longer needs the user's OK).
 
 ## 2. What exists (agent side)
 
@@ -237,4 +237,4 @@ Everything below is on GitHub branch **`ccr-9f4994da-q03f0a`** of `mayaa2006/ins
 - Works from Windows + an **Android** phone; wants simple UIs.
 - Wants uncensored local models: abliterated GGUFs, with the cloud only for public, non-sensitive steps.
 - Top video priorities: temporal and cross-video character consistency.
-- Prefers being asked before big downloads and pushes.
+- Prefers being asked before big downloads. Pushing to the branch is fine without asking (changed 2026-11-24).
